@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus - Student V12.0 (Ultimate Final)</title>
+    <title>Code Nexus - Student V13.0 (Clean Interface)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -271,14 +271,6 @@
         
         /* 自動重試指示燈 */
         #retry-status { font-size: 0.8em; color: #ffcc00; display:none; margin-left:10px; animation: blink 1s infinite; }
-        
-        /* 強制重啟按鈕 (救命用) */
-        .reset-python-btn { 
-            font-size: 0.7em; color: #ff5555; cursor: pointer; 
-            text-decoration: underline; margin-left: 10px; font-weight: bold;
-            border: 1px solid #ff5555; padding: 2px 6px; border-radius: 4px;
-        }
-        .reset-python-btn:hover { background: #ff5555; color: black; }
     </style>
 </head>
 <body>
@@ -306,7 +298,6 @@
     <div class="panel-left">
         <div class="header">
             NEXUS 
-            <span class="reset-python-btn" onclick="hardResetPyodide()" title="如果程式卡死，請按此重啟">🔴 重啟核心</span>
         </div>
         <div id="display-student-id" style="text-align:center; color:#888; margin-bottom:10px;">未登入</div>
         <div class="cam-box"><video id="video" autoplay muted playsinline></video></div>
@@ -524,6 +515,7 @@
         `;
 
         window.LESSON_CONFIG = { youtubeId: "PqFKRqpHrjw", title: "預設教材", summary: "預設摘要", code: "print('Hello')" };
+        // ★★★ 務必檢查此 GAS URL 是否正確 ★★★
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzkAH1B96FAMUhSf-n6ET5x8h8BXtXpxgIApmQraqk39rIZOhgUuOi94zmy1AuZMXAqXg/exec"; 
         
         let studentId = "";
@@ -877,19 +869,11 @@ builtins.input = custom_input
             alert("介面已強制重置");
         }
         
-        // 萬一卡死，手動重置 Pyodide
-        async function hardResetPyodide() {
-            if(confirm("確定要強制重啟 Python 核心嗎？")) {
-                try {
-                    document.getElementById('output').innerText = "重啟中...";
-                    pyodide = await loadPyodide();
-                    // 重啟後不需特別做什麼，executePythonCode 會自動注入覆寫
-                    document.getElementById('output').innerText = "核心已重置。";
-                } catch(e) { alert("重置失敗，請重新整理網頁"); }
-            }
+        function loginSystem() { if(!document.getElementById('student-id-input').value) return alert("輸入學號"); studentId = document.getElementById('student-id-input').value; document.getElementById('display-student-id').innerText = "ID: "+studentId; document.getElementById('login-overlay').style.display='none'; 
+        // V13.0: 登入時清除對話歷史
+        chatHistory = [];
+        init(); 
         }
-
-        function loginSystem() { if(!document.getElementById('student-id-input').value) return alert("輸入學號"); studentId = document.getElementById('student-id-input').value; document.getElementById('display-student-id').innerText = "ID: "+studentId; document.getElementById('login-overlay').style.display='none'; init(); }
         async function init() {
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
             try { await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)]); isFaceLoaded = true; } catch(e){}

@@ -2,14 +2,16 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus - Student Ultimate (All Features)</title>
+    <title>Code Nexus - Student Ultimate (V8.0 All Features)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <style>
-        /* === 全局基礎設定 === */
+        /* =========================================
+           1. 全局基礎設定
+           ========================================= */
         :root { 
             --bg-color: #050505; 
             --panel-bg: #101010; 
@@ -30,7 +32,9 @@
             overflow: hidden; 
         }
         
-        /* === 左側面板 (監測區) === */
+        /* =========================================
+           2. 左側面板 (監測區)
+           ========================================= */
         .panel-left { 
             width: 320px; 
             min-width: 320px; 
@@ -41,6 +45,15 @@
             flex-direction: column; 
             height: 100vh; 
             box-sizing: border-box; 
+        }
+        .header {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: var(--accent);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .cam-box { 
             flex: 0 0 200px; 
@@ -83,7 +96,9 @@
         }
         .log-entry { margin-bottom: 2px; border-bottom: 1px solid #222; padding-bottom: 2px; }
 
-        /* === 右側面板 (操作區) === */
+        /* =========================================
+           3. 右側面板 (操作區)
+           ========================================= */
         .panel-right { 
             flex: 1; 
             display: flex; 
@@ -229,7 +244,7 @@
         @keyframes pulse { 0% {transform: scale(1);} 50% {transform: scale(1.1);} 100% {transform: scale(1);} }
         .login-box { width: 350px; padding: 40px; border: 1px solid var(--accent); border-radius: 10px; background: #111; }
 
-        /* 治療模式優化 (固定大小、可捲動) */
+        /* 治療模式樣式 (修復版：固定寬度、可捲動) */
         .therapy-box {
             background: #111;
             padding: 30px;
@@ -253,6 +268,10 @@
             overflow-y: auto;
             width: 100%;
         }
+        
+        /* 隱藏的急救按鈕 */
+        .reset-ui-btn { font-size: 0.6em; color: #555; cursor: pointer; text-decoration: underline; margin-left: 10px; font-weight: normal; }
+        .reset-ui-btn:hover { color: var(--accent); }
     </style>
 </head>
 <body>
@@ -282,7 +301,7 @@
     </div>
 
     <div class="panel-left">
-        <div class="header">NEXUS</div>
+        <div class="header">NEXUS <span class="reset-ui-btn" onclick="forceResetUI()" title="如果按鈕卡住請按我">🔄重置</span></div>
         <div id="display-student-id" style="text-align:center; color:#888; margin-bottom:10px;">未登入</div>
         <div class="cam-box"><video id="video" autoplay muted playsinline></video></div>
         <div class="status-box">
@@ -369,7 +388,7 @@
 
         <div id="phase-ai-review" class="content-area">
             <h3>🤖 AI 評分你的題目</h3>
-            <button class="btn-action" onclick="triggerAIReview()">啟動 AI 評分</button>
+            <button class="btn-action" onclick="triggerAIReview()" id="btn-ai-review">啟動 AI 評分</button>
             <div id="ai-result" style="display:none; margin-top:15px;">
                 <table class="score-table">
                     <tr><th>向度</th><th>得分 (1-5)</th><th>AI 評語</th></tr>
@@ -386,7 +405,7 @@
         <div id="phase-human-review" class="content-area">
             <h3>👥 評分其他同學的題目</h3>
             <div style="background:#222; padding:10px; margin-bottom:15px; border-radius:4px; font-size:0.9em; color:#aaa;">
-                <span style="color:var(--accent)">★ 規則說明：</span> 為了確保評分公正，請先試著解出同學的題目，系統才會顯示參考解答與評分表。
+                <span style="color:var(--accent)">★ 規則說明：</span> 為了確保評分公正，請先試著解出同學的題目。
             </div>
             <button class="btn-action" onclick="loadPeerProblem()" style="background:#444; margin-bottom:15px;">📥 載入同儕挑戰</button>
             <div id="human-review-container" style="display:none; border:1px solid #333; padding:15px; border-radius:6px;">
@@ -478,7 +497,7 @@
             // 2. 上傳學習紀錄函式 (讓教師後台看得到數據)
             window.uploadToFirebase = async function(dataPayload) {
                 try {
-                    // 加上伺服器時間戳記 (模擬)
+                    // 加上伺服器時間戳記
                     dataPayload.createdAt = new Date();
                     // 寫入 'records' 集合
                     await addDoc(collection(db, "records"), dataPayload);
@@ -545,11 +564,36 @@ else:
         `;
         
         // ★★★ 修正後的治療 Prompt (限制長度) ★★★
-        const PROMPT_THERAPY_STYLE = `使用者壓力過高。請講一個「50字以內」的極短工程師笑話或鼓勵的話。一定要短，而且可以快速緩和使用者正在很煩躁、焦慮的情緒，避免輸出"*"符號。`;
+        const PROMPT_THERAPY_STYLE = `使用者壓力過高。請講一個「30字以內」的極短工程師笑話或鼓勵的話。一定要短。`;
 
-        // ===============================================
-        // YouTube API (動態載入版)
-        // ===============================================
+        // === API 呼叫防呆機制 (Timeout Wrapper) ===
+        const timeoutPromise = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error("請求超時 (Timeout)")), ms));
+
+        async function safeCallAI(prompt, system, buttonId) {
+            const btn = document.getElementById(buttonId);
+            if(btn) { btn.innerText = "思考中..."; btn.disabled = true; }
+            
+            try {
+                // 最長等待 20 秒
+                const result = await Promise.race([
+                    callGemini(prompt, system),
+                    timeoutPromise(20000)
+                ]);
+                return result;
+            } catch(e) {
+                alert("AI 連線錯誤或超時，請重試。\n" + e.message);
+                throw e; // 讓外層 catch 處理
+            } finally {
+                if(btn) { btn.innerText = "重試 / 送出"; btn.disabled = false; }
+            }
+        }
+
+        // === Python Input Fix (Stdin Handler) ===
+        function handlePythonInput(msg) {
+            // 當 Python 執行 input() 時，會觸發這個 Prompt
+            return window.prompt(msg || "Python 程式正在請求輸入 (Input):");
+        }
+
         function onYouTubeIframeAPIReady() {
             ytPlayer = new YT.Player('youtube-player', {
                 height: '100%', width: '100%',
@@ -595,13 +639,13 @@ else:
             const btn = document.getElementById('btn-gen-ex'); btn.innerText = "生成中..."; btn.disabled = true;
             const prompt = `[任務] 根據教材設計 3 道 Python 練習題（低中高）。\n教材:${window.LESSON_CONFIG.summary}\n範例:${window.LESSON_CONFIG.code}\n回傳JSON:{"low":{"title":"","desc":"","hint":""},"mid":{...},"high":{...}}`;
             try {
-                const r = await callGemini(prompt, "You are a JSON generator.");
+                const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-gen-ex");
                 generatedProblems = JSON.parse(extractJSON(r));
                 document.getElementById('ex-gen-section').style.display = 'none';
                 document.getElementById('ex-solve-section').style.display = 'block';
                 selectDifficulty('low');
                 typeWriterMsg('ai', '題目已生成，請開始挑戰！');
-            } catch(e) { alert("生成失敗"); btn.innerText = "🤖 重試"; btn.disabled = false; }
+            } catch(e) { console.error(e); }
         }
         function selectDifficulty(level) {
             if(!generatedProblems) return;
@@ -621,14 +665,14 @@ else:
             const c = document.getElementById('ex-code-editor').value; const p = generatedProblems[currentDifficulty]; const btn = document.getElementById('btn-check-ex'); btn.innerText = "檢查中..."; btn.disabled = true;
             const prompt = `[題目] ${p.title}\n[描述] ${p.desc}\n[代碼] ${c}\n判斷對錯回傳JSON:{"correct":true/false,"feedback":"..."}`;
             try {
-                const r = await callGemini(prompt, "You are a Tutor."); const json = JSON.parse(extractJSON(r));
+                const r = await safeCallAI(prompt, "You are a Tutor.", "btn-check-ex");
+                const json = JSON.parse(extractJSON(r));
                 document.getElementById('ex-feedback').style.display = 'block';
                 document.getElementById('ex-result-text').innerText = json.feedback;
                 await sendToGAS({ type: 'PHASE_2_EXERCISE', studentId, difficulty: currentDifficulty, title: p.title, code: c, passed: json.correct?"PASS":"FAIL", feedback: json.feedback });
                 if(json.correct) { document.getElementById('ex-feedback').style.borderColor = "#00ff9d"; document.getElementById('btn-next-phase').style.display = 'inline-block'; } 
                 else { document.getElementById('ex-feedback').style.borderColor = "#ff3333"; }
-            } catch(e) { alert("檢查錯誤"); }
-            btn.innerText = "📝 提交"; btn.disabled = false;
+            } catch(e) { console.error(e); }
         }
         function finishExercise() { switchPhase('posing'); typeWriterMsg('ai', '太棒了！現在試著自己出題吧！'); }
 
@@ -683,7 +727,8 @@ else:
             // Prompt 嚴格要求 Array 格式
             const prompt = `${PROMPT_STRICT_GRADING} 題目：${sessionData.probTitle} 敘述：${sessionData.probDesc} 代碼：${sessionData.probCode}`;
             try { 
-                const r = await callGemini(prompt, "You are a JSON generator."); const json = JSON.parse(extractJSON(r)); 
+                const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-ai-review"); // Use safeCall
+                const json = JSON.parse(extractJSON(r)); 
                 sessionData.aiScores = json.scores; sessionData.aiComment = json.comment;
                 
                 // 修正：確保 scores 是陣列
@@ -717,7 +762,11 @@ else:
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
             try { await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)]); isFaceLoaded = true; } catch(e){}
             try { const s = await navigator.mediaDevices.getUserMedia({ video: {} }); document.getElementById('video').srcObject = s; document.getElementById('video').addEventListener('play', ()=>setInterval(monitorLoop, 1000)); } catch(e){}
-            try { pyodide = await loadPyodide(); } catch(e){}
+            try { 
+                pyodide = await loadPyodide(); 
+                // ★★★ Python 輸入框修復 ★★★
+                pyodide.setStdin({ stdin: () => handlePythonInput() });
+            } catch(e){}
             document.addEventListener('mousemove', (e) => { if(lastMouseX!==0) mouseDist+=Math.sqrt(Math.pow(e.clientX-lastMouseX,2)+Math.pow(e.clientY-lastMouseY,2)); lastMouseX=e.clientX; lastMouseY=e.clientY; });
             document.addEventListener('keydown', (e)=> { if(e.key==='Backspace') backspaceCount++; });
             setInterval(() => tabSwitchCount=0, 5000); typeWriterMsg('ai', `你好！請開始學習。`); learningStartTime = Date.now(); 
@@ -787,6 +836,15 @@ else:
         }
         function log(t,d) { if(t!=='ACT'&&t!=='CHAT') sendToGAS({type:'LOG',studentId,action:t,detail:d}); }
         function stopTherapy() { document.getElementById('therapy-overlay').style.display='none'; stressScore=40; isPaused=false; }
+        
+        // 萬一卡死，手動重置 UI
+        function forceResetUI() {
+            document.querySelectorAll('button').forEach(b => {
+                b.disabled = false;
+                if(b.innerText.includes("...")) b.innerText = "重試";
+            });
+            alert("介面已強制重置");
+        }
     </script>
 </body>
 </html>

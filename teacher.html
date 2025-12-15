@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code Nexus - Teacher V9.1 (Final Ultimate)</title>
+    <title>Code Nexus - Teacher V10.0 (Progress Dashboard)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
@@ -181,7 +181,7 @@
         .detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: bold; }
         
         .modal-body { flex: 1; padding: 30px; overflow-y: auto; display: none; }
-        .modal-body.active { display: block; } /* 控制分頁顯示 */
+        .modal-body.active { display: block; }
 
         .detail-card { 
             background: white; 
@@ -261,7 +261,7 @@
                 </div>
             </div>
             <div class="table-container" style="padding:20px;">
-                <h4>課程狀態分佈</h4>
+                <h4>全班學習進度分佈 (即時)</h4>
                 <div style="height:300px;"><canvas id="mainChart"></canvas></div>
             </div>
         </div>
@@ -383,39 +383,82 @@
         } catch (e) { alert("系統錯誤: " + e.message); }
 
         function initListeners() {
-            // 1. 課程監聽
+            // 1. 監聽課程 (只用來更新上方數字)
             onSnapshot(query(collection(db, "units"), orderBy("order", "asc")), snap => {
-                const units = []; let activeCount = 0;
-                snap.forEach(d => { const data=d.data(); units.push({id:d.id, ...data}); if(data.isActive) activeCount++; });
-                renderCourses(units); updateDash(units.length, activeCount);
+                const units = []; 
+                snap.forEach(d => { units.push({id:d.id, ...d.data()}); });
+                renderCourses(units); 
+                document.getElementById('stat-units').innerText = units.length;
             });
 
-            // 2. 學生與題庫監聽 (監聽 records 集合)
+            // 2. 監聽學生紀錄 (這是重點：處理進度圖表與題庫)
             onSnapshot(collection(db, "records"), snap => {
                 const students = {};
                 const questions = [];
                 
+                // 統計各階段人數 (Progress Chart Data)
+                const phaseCounts = {
+                    'PHASE_1_LEARNING': 0, 'PHASE_2_EXERCISE': 0, 'PHASE_3_POSING': 0,
+                    'PHASE_4_AI': 0, 'PHASE_5_PEER': 0, 'PHASE_6_REFLECTION': 0
+                };
+
                 snap.forEach(d => {
                     const data = d.data();
                     const r = { id: d.id, ...data };
                     
-                    // 彙整學生狀態 (取最新一筆活動)
+                    // 找出每位學生"最新"的狀態
                     if(data.studentId) {
                         if(!students[data.studentId] || data.createdAt > students[data.studentId].createdAt) {
                             students[data.studentId] = { id: data.studentId, lastAction: data.type, time: data.createdAt };
                         }
                     }
                     
-                    // 彙整題庫 (篩選 Phase 3 的資料)
-                    if(data.type === 'PHASE_3_POSING') {
-                        questions.push(r);
-                    }
+                    // 收集題目 (Phase 3 Posing)
+                    if(data.type === 'PHASE_3_POSING') questions.push(r);
                 });
                 
+                // 計算各階段人數
+                Object.values(students).forEach(s => {
+                    if (phaseCounts[s.lastAction] !== undefined) phaseCounts[s.lastAction]++;
+                });
+
                 renderStudents(Object.values(students));
                 renderQuestions(questions);
                 document.getElementById('stat-students').innerText = Object.keys(students).length;
                 document.getElementById('stat-questions').innerText = questions.length;
+
+                // ★★★ 更新儀表板圖表：全班進度長條圖 ★★★
+                updateProgressChart(phaseCounts);
+            });
+        }
+
+        // 新的圖表繪製函式：學習進度長條圖
+        function updateProgressChart(counts) {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            if(chartInstance) chartInstance.destroy();
+
+            const labels = ['1.學習', '2.練習', '3.擬題', '4.AI評分', '5.互評', '6.反思'];
+            const data = [
+                counts['PHASE_1_LEARNING'], counts['PHASE_2_EXERCISE'], counts['PHASE_3_POSING'],
+                counts['PHASE_4_AI'], counts['PHASE_5_PEER'], counts['PHASE_6_REFLECTION']
+            ];
+
+            chartInstance = new Chart(ctx, { 
+                type: 'bar', // 長條圖
+                data: { 
+                    labels: labels, 
+                    datasets: [{ 
+                        label: '人數', 
+                        data: data, 
+                        backgroundColor: ['#6c5ce7', '#0984e3', '#00b894', '#fdcb6e', '#e17055', '#d63031'], 
+                        borderWidth: 0, borderRadius: 5
+                    }] 
+                }, 
+                options: { 
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } },
+                    plugins: { legend: { display: false } }
+                } 
             });
         }
 
@@ -423,8 +466,7 @@
         function renderCourses(list) {
             document.getElementById('course-list-body').innerHTML = list.map(u => `
                 <tr>
-                    <td>${u.order}</td>
-                    <td><strong>${u.title}</strong></td>
+                    <td>${u.order}</td><td><strong>${u.title}</strong></td>
                     <td><span class="badge badge-date">${u.releaseDate || '未設定'}</span></td>
                     <td>${u.youtubeId}</td>
                     <td>${u.isActive?'<span class="badge badge-active">上架</span>':'<span class="badge badge-draft">草稿</span>'}</td>
@@ -452,7 +494,6 @@
         function renderQuestions(list) {
             document.getElementById('question-list-body').innerHTML = list.map(q => {
                 const unitName = q.unitTitle || "未分類"; 
-                // 計算平均分 (若有)
                 const scoreAvg = q.aiScores ? (q.aiScores.reduce((a,b)=>Number(a)+Number(b),0)/5).toFixed(1) : '-';
                 return `<tr>
                     <td><span class="badge badge-unit">${unitName}</span></td>
@@ -467,25 +508,16 @@
             }).join('');
         }
 
-        function updateDash(total, active) {
-            document.getElementById('stat-units').innerText = total; document.getElementById('stat-active').innerText = active;
-            const ctx = document.getElementById('mainChart').getContext('2d');
-            if(chartInstance) chartInstance.destroy();
-            chartInstance = new Chart(ctx, { type: 'doughnut', data: { labels: ['上架', '草稿'], datasets: [{ data: [active, total-active], backgroundColor: ['#00b894', '#ff7675'], borderWidth:0 }] }, options:{ maintainAspectRatio:false } });
-        }
-
         // === 學生詳情 (Tabbed Portfolio) ===
         window.app.viewDetail = async function(sid) {
             document.getElementById('detail-student-id').innerText = sid;
             document.getElementById('modal-student-detail').style.display = 'flex';
             
-            // 重置 Tab
             document.querySelectorAll('.detail-tab').forEach(t=>t.classList.remove('active'));
             document.querySelectorAll('.modal-body').forEach(b=>b.classList.remove('active'));
             document.querySelector('.detail-tab:first-child').classList.add('active');
             document.getElementById('tab-overview').classList.add('active');
 
-            // 抓取資料
             const q = query(collection(db, "records"), where("studentId", "==", sid), orderBy("createdAt", "asc"));
             const snap = await getDocs(q);
             
@@ -520,22 +552,20 @@
             const ctx = document.getElementById('emotionChart').getContext('2d');
             if(emotionChartInstance) emotionChartInstance.destroy();
             
-            // ★★★ 壓力圖表修正：0-50 放大映射到 0-100 ★★★
             const labels = currentDetailData.monitors.map(m => new Date(m.createdAt.seconds * 1000).toLocaleTimeString());
-            const stressData = currentDetailData.monitors.map(m => Math.min(m.stress * 2, 100)); // 放大2倍，最高100
+            const stressData = currentDetailData.monitors.map(m => Math.min(m.stress * 2, 100)); // 0-50 mapped to 0-100%
 
-            // 漸層背景 (紅-黃-綠)
             const gradient = ctx.createLinearGradient(0, 300, 0, 0);
-            gradient.addColorStop(0, 'rgba(0, 255, 157, 0.2)');   // Green (Low)
-            gradient.addColorStop(0.5, 'rgba(255, 204, 0, 0.2)'); // Yellow (Mid)
-            gradient.addColorStop(1, 'rgba(255, 51, 51, 0.3)');   // Red (High)
+            gradient.addColorStop(0, 'rgba(0, 255, 157, 0.2)');   // Green
+            gradient.addColorStop(0.5, 'rgba(255, 204, 0, 0.2)'); // Yellow
+            gradient.addColorStop(1, 'rgba(255, 51, 51, 0.3)');   // Red
 
             emotionChartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: '壓力強度 (0-50 scale magnified)',
+                        label: '壓力強度 (0-50 magnified)',
                         data: stressData,
                         borderColor: '#555',
                         borderWidth: 2,
@@ -548,11 +578,7 @@
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     scales: { 
-                        y: { 
-                            min: 0, max: 100, 
-                            title: {display:true, text:'壓力百分比 %'},
-                            ticks: { callback: function(val) { return val + '%'; } } // 顯示百分比
-                        },
+                        y: { min: 0, max: 100, title: {display:true, text:'壓力百分比 %'}, ticks: { callback: function(val) { return val + '%'; } } },
                         x: { grid: {display:false} }
                     },
                     plugins: { tooltip: { callbacks: { label: (c)=> `壓力強度: ${c.raw}% (原始值: ${c.raw/2})` } } }
@@ -563,7 +589,7 @@
         function renderOtherTabs() {
             const d = currentDetailData;
             
-            // Tab 2: 學習
+            // Tab 2: Learning
             const ex = d.exercise[d.exercise.length - 1];
             document.getElementById('tab-learning').innerHTML = `
                 <div class="detail-card"><h4>🎥 學習階段</h4>
@@ -574,7 +600,7 @@
                     ${ex ? `<div class="code-block">${escapeHtml(ex.code)}</div><div style="color:#666; margin-top:5px;">AI: ${ex.feedback}</div>` : ''}
                 </div>`;
 
-            // Tab 3: 擬題與互評
+            // Tab 3: Posing
             let scoreTbl = d.aiReview && d.aiReview.aiScores ? `
                 <table style="width:100%; text-align:center; font-size:0.9em; margin-top:5px; border:1px solid #eee;">
                     <tr style="background:#f9f9f9"><th>正確</th><th>邏輯</th><th>實用</th><th>代碼</th><th>可讀</th></tr>
@@ -591,10 +617,10 @@
                 <div class="detail-card"><h4>📝 我出的題目</h4>${d.posing ? `題目：<b>${d.posing.probTitle}</b><br>敘述：${d.posing.probDesc}<div class="code-block">${escapeHtml(d.posing.probCode)}</div>` : '未出題'}${scoreTbl}</div>
                 <div class="detail-card"><h4>👀 我對同學的互評</h4>${peerHtml}</div>`;
 
-            // Tab 4: 反思
+            // Tab 4: Reflection
             document.getElementById('tab-reflection').innerHTML = `<div class="detail-card"><h4>🤔 反思心得</h4><p style="line-height:1.6;">${d.reflection ? d.reflection.reflection : '尚未填寫'}</p></div>`;
 
-            // Tab 5: 對話
+            // Tab 5: Chat
             document.getElementById('tab-chat').innerHTML = `<div class="detail-card"><h4>💬 師生對話紀錄</h4><div class="chat-log-box">${d.chats.map(c=>`<div class="chat-item"><span class="chat-user">S: ${c.userMsg}</span><br><span class="chat-ai">AI: ${c.aiMsg}</span></div>`).join('')}</div></div>`;
         }
 

@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code Nexus - Teacher Admin (Ultimate V8.0)</title>
+    <title>Code Nexus - Teacher V8.0 (Edit & Schedule Fixed)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
         /* =========================================
-           1. 基礎排版與配色
+           1. 基礎樣式與排版
            ========================================= */
         :root { 
             --sidebar-bg: #1a1a1a; 
@@ -81,13 +81,13 @@
         }
         .header h2 { margin: 0; color: var(--text-dark); font-size: 1.8em; }
 
-        /* 視圖切換動畫 */
+        /* 視圖切換 */
         .view-section { display: none; animation: fadeIn 0.3s ease; }
         .view-section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         /* =========================================
-           2. 儀表板組件
+           2. 儀表板與表格
            ========================================= */
         .dashboard-grid { 
             display: grid; 
@@ -106,7 +106,6 @@
             color: #888; 
             font-size: 0.9rem; 
             text-transform: uppercase; 
-            letter-spacing: 1px;
         }
         .stat-card .number { 
             font-size: 2.5em; 
@@ -115,9 +114,6 @@
             margin-top: 10px; 
         }
 
-        /* =========================================
-           3. 表格樣式
-           ========================================= */
         .table-container { 
             background: var(--card-bg); 
             border-radius: 12px; 
@@ -138,16 +134,13 @@
             text-transform: uppercase; 
         }
         tr:hover { background-color: #f9f9f9; }
-        tr:last-child td { border-bottom: none; }
 
-        /* 狀態標籤 */
+        /* 標籤與按鈕 */
         .badge { padding: 5px 12px; border-radius: 20px; font-size: 0.75em; font-weight: bold; display: inline-block; }
         .badge-active { background: #d4edda; color: #155724; }
         .badge-draft { background: #f8d7da; color: #721c24; }
-        .badge-phase { background: #e2e3e5; color: #383d41; }
-        .badge-info { background: #cce5ff; color: #004085; }
+        .badge-date { background: #e2e3e5; color: #383d41; font-family: monospace; }
 
-        /* 按鈕 */
         .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.9em; transition: 0.2s; display: inline-flex; align-items: center; gap: 5px; }
         .btn-primary { background: var(--accent); color: white; box-shadow: 0 4px 10px rgba(0,123,255,0.3); }
         .btn-primary:hover { background: #0056b3; transform: translateY(-1px); }
@@ -157,7 +150,7 @@
         .btn-icon:hover { opacity: 1; transform: scale(1.1); }
 
         /* =========================================
-           4. Modal 與 詳細資料視窗
+           3. Modal 視窗
            ========================================= */
         .modal-overlay { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -166,7 +159,6 @@
             z-index: 2000; backdrop-filter: blur(3px); 
         }
         
-        /* 學生詳情大視窗 */
         .modal-large { 
             background: #f4f6f8; 
             width: 95%; max-width: 1100px; height: 90vh; 
@@ -186,7 +178,6 @@
             display: grid; grid-template-columns: 1fr 1fr; gap: 20px; 
         }
         
-        /* 詳細內容卡片 */
         .detail-card { 
             background: white; 
             border-radius: 10px; 
@@ -196,39 +187,30 @@
             margin-bottom: 20px; 
         }
         .detail-card h4 { 
-            margin-top: 0; 
-            color: var(--accent); 
-            border-bottom: 2px solid #f0f0f0; 
-            padding-bottom: 10px; 
-            display: flex; align-items: center; gap: 8px;
+            margin-top: 0; color: var(--accent); 
+            border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; 
         }
         .info-row { 
             display: flex; justify-content: space-between; 
             margin-bottom: 8px; font-size: 0.9em; 
             border-bottom: 1px dashed #eee; padding-bottom: 5px; 
         }
-        .info-label { color: #888; }
         .code-block { 
             background: #2d2d2d; color: #ccc; 
             padding: 15px; border-radius: 6px; 
             font-family: monospace; overflow-x: auto; 
             font-size: 0.9em; margin-top: 10px; 
         }
-        
-        /* 聊天紀錄樣式 */
         .chat-log-box { 
             max-height: 250px; overflow-y: auto; 
             background: #f9f9f9; padding: 10px; 
             border-radius: 6px; font-size: 0.85em; 
         }
-        .chat-item { 
-            margin-bottom: 8px; padding-bottom: 8px; 
-            border-bottom: 1px solid #eee; 
-        }
+        .chat-item { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
         .chat-user { color: #007bff; font-weight: bold; }
         .chat-ai { color: #28a745; font-weight: bold; }
 
-        /* 一般編輯 Modal */
+        /* 編輯教材小 Modal */
         .modal-small { 
             background: white; width: 500px; 
             padding: 30px; border-radius: 12px; 
@@ -249,7 +231,7 @@
     <div class="sidebar">
         <div class="brand">🚀 Code Nexus Pro</div>
         <div class="menu-item active" onclick="app.switchView('dashboard')">📊 數據儀表板</div>
-        <div class="menu-item" onclick="app.switchView('courses')">📚 課程管理</div>
+        <div class="menu-item" onclick="app.switchView('courses')">📚 課程排程管理</div>
         <div class="menu-item" onclick="app.switchView('students')">🎓 學生名單</div>
         <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid #333; font-size: 0.8em; color: #666;">Status: <span style="color:#00ff9d">Online</span></div>
     </div>
@@ -263,7 +245,7 @@
                     <h3>總課程單元</h3><div class="number" id="stat-units">0</div>
                 </div>
                 <div class="stat-card">
-                    <h3>上架中課程</h3><div class="number" id="stat-active" style="color:#00b894">0</div>
+                    <h3>已開放課程</h3><div class="number" id="stat-active" style="color:#00b894">0</div>
                 </div>
                 <div class="stat-card">
                     <h3>活躍學生數</h3><div class="number" id="stat-students" style="color:#007bff">0</div>
@@ -277,13 +259,13 @@
 
         <div id="view-courses" class="view-section">
             <div class="header">
-                <h2>教材列表</h2>
+                <h2>教材列表與排程</h2>
                 <button class="btn btn-primary" onclick="app.openCourseModal()">+ 新增單元</button>
             </div>
             <div class="table-container">
                 <table class="course-table">
-                    <thead><tr><th width="60">排序</th><th>單元標題</th><th>影片ID</th><th>狀態</th><th width="150">操作</th></tr></thead>
-                    <tbody id="course-list-body"><tr><td colspan="5" style="text-align:center;">載入中...</td></tr></tbody>
+                    <thead><tr><th width="50">序</th><th>單元標題</th><th>開放日期</th><th>影片ID</th><th>狀態</th><th width="150">操作</th></tr></thead>
+                    <tbody id="course-list-body"><tr><td colspan="6" style="text-align:center;">載入中...</td></tr></tbody>
                 </table>
             </div>
         </div>
@@ -314,13 +296,20 @@
         <div class="modal-small">
             <h3 id="modal-course-title">新增教材</h3>
             <input type="hidden" id="inp-id">
-            <div class="form-group"><label>排序</label><input type="number" id="inp-order" class="form-input" value="1"></div>
-            <div class="form-group"><label>標題</label><input type="text" id="inp-title" class="form-input"></div>
-            <div class="form-group"><label>影片ID</label><input type="text" id="inp-vid" class="form-input"></div>
-            <div class="form-group"><label>摘要</label><input type="text" id="inp-summary" class="form-input"></div>
-            <div class="form-group"><label>代碼</label><textarea id="inp-code" class="form-input" style="height:80px;"></textarea></div>
-            <div class="form-group"><label>狀態</label><select id="inp-active" class="form-input"><option value="true">上架</option><option value="false">草稿</option></select></div>
-            <div style="text-align:right;"><button class="btn" style="background:#eee;" onclick="app.closeCourseModal()">取消</button> <button class="btn btn-primary" onclick="app.saveCourse()">儲存</button></div>
+            <div class="form-group"><label>排序 (Order)</label><input type="number" id="inp-order" class="form-input" value="1"></div>
+            
+            <div class="form-group"><label>📅 開放日期 (Publish Date)</label><input type="date" id="inp-date" class="form-input"></div>
+            
+            <div class="form-group"><label>單元標題</label><input type="text" id="inp-title" class="form-input" placeholder="例如：Python 基礎"></div>
+            <div class="form-group"><label>YouTube ID</label><input type="text" id="inp-vid" class="form-input" placeholder="例如：dQw4w9WgXcQ"></div>
+            <div class="form-group"><label>教材摘要 (給 AI 出題用)</label><input type="text" id="inp-summary" class="form-input"></div>
+            <div class="form-group"><label>範例代碼</label><textarea id="inp-code" class="form-input" style="height:80px;"></textarea></div>
+            <div class="form-group"><label>狀態</label><select id="inp-active" class="form-input"><option value="true">上架 (Active)</option><option value="false">草稿 (Draft)</option></select></div>
+            
+            <div style="text-align:right;">
+                <button class="btn" style="background:#eee;" onclick="app.closeCourseModal()">取消</button> 
+                <button class="btn btn-primary" onclick="app.saveCourse()">儲存設定</button>
+            </div>
         </div>
     </div>
 
@@ -353,7 +342,6 @@
             initListeners();
         } catch (e) { alert("系統錯誤: " + e.message); }
 
-        // === 1. 即時監聽 (Real-time Listeners) ===
         function initListeners() {
             // 監聽課程
             onSnapshot(query(collection(db, "units"), orderBy("order", "asc")), snap => {
@@ -362,15 +350,14 @@
                 renderCourses(units); updateDash(units.length, activeCount);
             });
 
-            // 監聽學生紀錄 (Aggregation)
+            // 監聽學生紀錄
             onSnapshot(collection(db, "records"), snap => {
                 const students = {};
                 snap.forEach(d => {
                     const data = d.data();
                     if(!data.studentId) return;
-                    // 找出該學生最新的一筆紀錄，作為列表顯示用
                     if(!students[data.studentId] || data.createdAt > students[data.studentId].createdAt) {
-                        students[data.studentId] = { id: data.studentId, lastAction: data.type, time: data.createdAt, detail: data.detail || "" };
+                        students[data.studentId] = { id: data.studentId, lastAction: data.type, time: data.createdAt };
                     }
                 });
                 renderStudents(Object.values(students));
@@ -378,24 +365,33 @@
             });
         }
 
-        // === 2. 渲染函式 (Renderers) ===
+        // === Render Functions ===
         function renderCourses(list) {
-            document.getElementById('course-list-body').innerHTML = list.map(u => `<tr><td>${u.order}</td><td>${u.title}</td><td>${u.youtubeId}</td><td>${u.isActive?'<span class="badge badge-active">上架</span>':'<span class="badge badge-draft">草稿</span>'}</td><td><button class="btn-icon" onclick="app.editCourse('${encodeURIComponent(JSON.stringify(u))}')">✏️</button><button class="btn-icon" onclick="app.toggleStatus('${u.id}',${u.isActive})">🔄</button><button class="btn-icon" style="color:red;" onclick="app.delCourse('${u.id}')">🗑️</button></td></tr>`).join('');
+            document.getElementById('course-list-body').innerHTML = list.map(u => `
+                <tr>
+                    <td>${u.order}</td>
+                    <td><strong>${u.title}</strong></td>
+                    <td><span class="badge badge-date">${u.releaseDate || '未設定'}</span></td>
+                    <td>${u.youtubeId}</td>
+                    <td>${u.isActive?'<span class="badge badge-active">上架</span>':'<span class="badge badge-draft">草稿</span>'}</td>
+                    <td>
+                        <button class="btn-icon" onclick="app.editCourse('${encodeURIComponent(JSON.stringify(u))}')">✏️</button>
+                        <button class="btn-icon" onclick="app.toggleStatus('${u.id}',${u.isActive})">🔄</button>
+                        <button class="btn-icon" style="color:red;" onclick="app.delCourse('${u.id}')">🗑️</button>
+                    </td>
+                </tr>`).join('');
         }
 
         function renderStudents(list) {
             list.sort((a,b) => b.time - a.time);
-            
-            // 動作翻譯
             const actionMap = {
-                'PHASE_1_LEARNING': '🎥 觀看影片', 'PHASE_2_EXERCISE': '🏋️ 練習題挑戰', 'PHASE_3_POSING': '📝 正在出題',
-                'PHASE_4_AI': '🤖 AI 評分中', 'PHASE_5_PEER': '👀 同儕互評', 'PHASE_6_REFLECTION': '🤔 撰寫反思',
-                'CHAT_LOG': '💬 與 AI 對話', 'MONITOR_LOG': '🧠 專注學習中'
+                'PHASE_1_LEARNING': '🎥 觀看影片', 'PHASE_2_EXERCISE': '🏋️ 練習題', 'PHASE_3_POSING': '📝 出題中',
+                'PHASE_4_AI': '🤖 AI 評分', 'PHASE_5_PEER': '👀 同儕互評', 'PHASE_6_REFLECTION': '🤔 反思',
+                'CHAT_LOG': '💬 AI 對話', 'MONITOR_LOG': '🧠 學習中'
             };
-
             document.getElementById('student-list-body').innerHTML = list.map(s => {
                 const t = s.time && s.time.seconds ? new Date(s.time.seconds*1000).toLocaleTimeString() : '剛剛';
-                return `<tr><td><strong>${s.id}</strong></td><td style="color:#666;">${t}</td><td><span class="badge badge-info">${actionMap[s.lastAction] || s.lastAction}</span></td><td><button class="btn btn-primary" onclick="app.viewDetail('${s.id}')">📄 查看報告</button></td></tr>`;
+                return `<tr><td><strong>${s.id}</strong></td><td style="color:#666;">${t}</td><td><span class="badge badge-date">${actionMap[s.lastAction] || s.lastAction}</span></td><td><button class="btn btn-primary" onclick="app.viewDetail('${s.id}')">📄 報告</button></td></tr>`;
             }).join('');
         }
 
@@ -403,109 +399,156 @@
             document.getElementById('stat-units').innerText = total; document.getElementById('stat-active').innerText = active;
             const ctx = document.getElementById('mainChart').getContext('2d');
             if(chartInstance) chartInstance.destroy();
-            chartInstance = new Chart(ctx, { type: 'doughnut', data: { labels: ['上架', '草稿'], datasets: [{ data: [active, total-active], backgroundColor: ['#00b894', '#ff7675'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false } });
+            chartInstance = new Chart(ctx, { type: 'doughnut', data: { labels: ['上架', '草稿'], datasets: [{ data: [active, total-active], backgroundColor: ['#00b894', '#ff7675'], borderWidth:0 }] }, options:{ maintainAspectRatio:false } });
         }
 
-        // === 3. 核心功能：查看詳情 (Portfolio) ===
+        // === 學生詳情 (含圖表優化) ===
         window.app.viewDetail = async function(sid) {
             document.getElementById('detail-student-id').innerText = sid;
             const body = document.getElementById('detail-body');
-            body.innerHTML = '<div style="text-align:center; grid-column:span 2;">資料載入中，請稍候...</div>';
+            body.innerHTML = 'Loading...';
             document.getElementById('modal-student-detail').style.display = 'flex';
 
             const q = query(collection(db, "records"), where("studentId", "==", sid), orderBy("createdAt", "asc"));
             const snap = await getDocs(q);
             
-            const data = { learning: null, exercise: [], posing: null, aiReview: null, peerReview: [], reflection: null, chats: [], monitors: [] };
+            const data = { learning: null, exercise: [], posing: null, aiReview: null, reflection: null, chats: [], monitors: [] };
 
             snap.forEach(d => {
                 const r = d.data();
-                // ★★★ 關鍵修復：抓取「閱讀時長」最大值 ★★★
-                if(r.type === 'PHASE_1_LEARNING') {
-                    if (!data.learning || r.readingTime > data.learning.readingTime) data.learning = r;
-                }
+                if(r.type === 'PHASE_1_LEARNING') { if (!data.learning || r.readingTime > data.learning.readingTime) data.learning = r; }
                 if(r.type === 'PHASE_2_EXERCISE') data.exercise.push(r);
                 if(r.type === 'PHASE_3_POSING') data.posing = r;
                 if(r.type === 'PHASE_4_AI') data.aiReview = r;
-                if(r.type === 'PHASE_5_PEER') data.peerReview.push(r);
                 if(r.type === 'PHASE_6_REFLECTION') data.reflection = r;
                 if(r.type === 'CHAT_LOG') data.chats.push(r);
                 if(r.type === 'MONITOR_LOG') data.monitors.push(r);
             });
 
             let html = "";
-
-            // 1. 情緒圖表區
+            // 1. 圖表區
             html += `<div class="detail-card" style="grid-column: span 2;">
-                <h4>📈 學習壓力與情緒監測 (Affective Computing)</h4>
+                <h4>📈 壓力與情緒趨勢 (Stress Monitor)</h4>
                 <div style="height: 250px; width: 100%;"><canvas id="emotionChart"></canvas></div>
             </div>`;
+            
+            // 2. 學習紀錄
+            const ex = data.exercise[data.exercise.length - 1];
+            html += `<div class="detail-card"><h4>🎥 學習與練習</h4>
+                <div class="info-row"><span style="color:#888">閱讀時長</span><b>${data.learning ? data.learning.readingTime+'秒' : '--'}</b></div>
+                <div class="info-row"><span style="color:#888">練習題狀態</span>${ex ? '<span class="badge badge-active">已完成</span>' : '<span class="badge badge-draft">未完成</span>'}</div>
+                ${ex ? `<div class="code-block">${escapeHtml(ex.code)}</div>` : ''}
+            </div>`;
 
-            // 2. 學習區
-            html += `<div class="detail-card"><h4>🎥 學習階段 (Learning)</h4>${data.learning ? `<div class="info-row"><span class="info-label">閱讀時長</span><span style="font-size:1.2em; color:green; font-weight:bold;">${data.learning.readingTime} 秒</span></div>` : '<p style="color:#aaa">尚無觀看紀錄</p>'}</div>`;
-
-            // 3. 練習區
-            const ex = data.exercise[data.exercise.length - 1]; 
-            html += `<div class="detail-card"><h4>🏋️ 練習階段 (Exercise)</h4>${ex ? `<div class="info-row"><span class="info-label">難度</span><span class="badge badge-active">${ex.difficulty}</span></div><div class="code-block">${escapeHtml(ex.code)}</div><div style="margin-top:5px; color:#666;">AI：${ex.feedback}</div>` : '<p style="color:#aaa">未完成</p>'}</div>`;
-
-            // 4. AI 評分區 (表格化)
+            // 3. AI 評分
             const ai = data.aiReview;
-            let scoreTable = "";
-            if (ai && ai.aiScores) {
-                scoreTable = `
-                <table style="width:100%; margin-top:10px; font-size:0.9em; text-align:center; border:1px solid #eee;">
-                    <tr style="background:#f9f9f9;"><th>正確性</th><th>複雜度</th><th>實用性</th><th>代碼</th><th>可讀性</th></tr>
-                    <tr><td>${ai.aiScores[0]||'-'}</td><td>${ai.aiScores[1]||'-'}</td><td>${ai.aiScores[2]||'-'}</td><td>${ai.aiScores[3]||'-'}</td><td>${ai.aiScores[4]||'-'}</td></tr>
-                </table>
-                <div style="margin-top:8px; font-size:0.9em; color:#555; background:#f4f4f4; padding:8px; border-radius:4px;">${ai.aiComment}</div>`;
-            }
-            html += `<div class="detail-card"><h4>🤖 AI 評閱</h4>${data.posing ? `<div class="info-row"><span class="info-label">出題題目</span><span>${data.posing.probTitle}</span></div>` : ''} ${ai ? scoreTable : '<p style="color:#aaa">尚未評分</p>'}</div>`;
+            let scoreTbl = ai && ai.aiScores ? `
+                <table style="width:100%; text-align:center; font-size:0.9em; margin-top:5px; border:1px solid #eee;">
+                    <tr style="background:#f9f9f9"><th>正確</th><th>邏輯</th><th>實用</th><th>代碼</th><th>可讀</th></tr>
+                    <tr><td>${ai.aiScores[0]}</td><td>${ai.aiScores[1]}</td><td>${ai.aiScores[2]}</td><td>${ai.aiScores[3]}</td><td>${ai.aiScores[4]}</td></tr>
+                </table><div style="margin-top:5px; font-size:0.8em; color:#666;">${ai.aiComment}</div>` : '尚無評分';
+            
+            html += `<div class="detail-card"><h4>🤖 出題與 AI 評閱</h4>${data.posing ? `題目：<b>${data.posing.probTitle}</b>` : ''}${scoreTbl}</div>`;
 
-            // 5. 對話紀錄
-            html += `<div class="detail-card" style="grid-row: span 2;"><h4>💬 師生對話紀錄</h4><div class="chat-log-box">${data.chats.length > 0 ? data.chats.map(c => `<div class="chat-item"><div class="chat-user">S: ${c.userMsg}</div><div class="chat-ai">AI: ${c.aiMsg}</div></div>`).join('') : '<p style="color:#aaa;">無對話</p>'}</div></div>`;
-
-            // 6. 反思
-            html += `<div class="detail-card"><h4>🤔 反思</h4>${data.reflection ? `<p style="line-height:1.6;">${data.reflection.reflection}</p>` : '<p style="color:#aaa">未填寫</p>'}</div>`;
+            // 4. 對話
+            html += `<div class="detail-card" style="grid-row: span 2;"><h4>💬 對話紀錄</h4><div class="chat-log-box">${data.chats.map(c=>`<div class="chat-item"><span class="chat-user">S: ${c.userMsg}</span><br><span class="chat-ai">AI: ${c.aiMsg}</span></div>`).join('')}</div></div>`;
 
             body.innerHTML = html;
 
-            // 繪圖
+            // ★★★ 繪製優化後的圖表 ★★★
             setTimeout(() => {
                 const ctx = document.getElementById('emotionChart').getContext('2d');
-                if (emotionChartInstance) emotionChartInstance.destroy();
-                const labels = data.monitors.map(m => new Date(m.createdAt.seconds * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}));
+                if(emotionChartInstance) emotionChartInstance.destroy();
+                
+                // 建立背景漸層 (綠->黃->紅)
+                const gradient = ctx.createLinearGradient(0, 250, 0, 0);
+                gradient.addColorStop(0, 'rgba(0, 255, 157, 0.2)');   // 0% Green
+                gradient.addColorStop(0.5, 'rgba(255, 204, 0, 0.2)'); // 50% Yellow
+                gradient.addColorStop(1, 'rgba(255, 51, 51, 0.3)');   // 100% Red
+
+                const labels = data.monitors.map(m => new Date(m.createdAt.seconds * 1000).toLocaleTimeString());
                 const stressData = data.monitors.map(m => m.stress);
-                const emotionData = data.monitors.map(m => m.emotion);
 
                 emotionChartInstance = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: labels,
-                        datasets: [{ label: '壓力指數 (0-100)', data: stressData, borderColor: '#ff6b6b', backgroundColor: 'rgba(255, 107, 107, 0.1)', fill: true, tension: 0.4 }]
+                        datasets: [{
+                            label: '壓力指數 (0-100)',
+                            data: stressData,
+                            borderColor: '#555',
+                            borderWidth: 2,
+                            backgroundColor: gradient, // 套用漸層
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0
+                        }]
                     },
                     options: {
-                        responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' },
-                        plugins: { tooltip: { callbacks: { afterLabel: (ctx) => "情緒: " + (emotionData[ctx.dataIndex] || "unknown") } } },
-                        scales: { y: { min: 0, max: 100, grid: { color: '#f0f0f0' } }, x: { grid: { display: false } } }
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { 
+                            y: { min: 0, max: 100, title: {display:true, text:'壓力值'} }, // 強制 0-100
+                            x: { grid: {display:false} }
+                        },
+                        plugins: { tooltip: { callbacks: { label: (c)=> `壓力: ${c.raw}%` } } }
                     }
                 });
-            }, 150);
+            }, 200);
         }
 
         function escapeHtml(text) { return text ? text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; }
 
-        // === UI Helpers ===
+        // === 課程編輯邏輯 (含修復) ===
         window.app.switchView = function(n) { document.querySelectorAll('.view-section').forEach(e=>e.classList.remove('active')); document.getElementById('view-'+n).classList.add('active'); document.querySelectorAll('.menu-item').forEach(e=>e.classList.remove('active')); event.currentTarget.classList.add('active'); }
         window.app.closeDetailModal = function() { document.getElementById('modal-student-detail').style.display='none'; }
-        window.app.openCourseModal = function() { document.getElementById('modal-course-form').style.display='flex'; document.getElementById('modal-course-title').innerText="新增教材"; document.getElementById('inp-id').value=""; document.getElementById('inp-title').value=""; document.getElementById('inp-vid').value=""; document.getElementById('inp-summary').value=""; document.getElementById('inp-code').value=""; }
-        window.app.closeCourseModal = function() { document.getElementById('modal-course-form').style.display='none'; }
-        window.app.editCourse = function(s) { const d=JSON.parse(decodeURIComponent(s)); document.getElementById('modal-course-form').style.display='flex'; document.getElementById('modal-course-title').innerText="編輯教材"; document.getElementById('inp-id').value=d.id; document.getElementById('inp-order').value=d.order; document.getElementById('inp-title').value=d.title; document.getElementById('inp-vid').value=d.youtubeId; document.getElementById('inp-summary').value=d.summary; document.getElementById('inp-code').value=d.code; document.getElementById('inp-active').value=d.isActive; }
-        
-        window.app.saveCourse = async function() {
-            const id=document.getElementById('inp-id').value;
-            const p={order:Number(document.getElementById('inp-order').value), title:document.getElementById('inp-title').value, youtubeId:document.getElementById('inp-vid').value, summary:document.getElementById('inp-summary').value, code:document.getElementById('inp-code').value, isActive:document.getElementById('inp-active').value==='true', updatedAt:new Date()};
-            try { if(id) await updateDoc(doc(db,"units",id),p); else { p.createdAt=new Date(); await addDoc(collection(db,"units"),p); } window.app.closeCourseModal(); } catch(e){alert(e.message);}
+        window.app.openCourseModal = function() { 
+            document.getElementById('modal-course-form').style.display='flex'; 
+            document.getElementById('modal-course-title').innerText="新增教材"; 
+            ['inp-id','inp-title','inp-vid','inp-summary','inp-code','inp-date'].forEach(id=>document.getElementById(id).value="");
         }
+        window.app.closeCourseModal = function() { document.getElementById('modal-course-form').style.display='none'; }
+        
+        // 編輯按鈕修復：正確帶入 ID 與 Date
+        window.app.editCourse = function(s) { 
+            const d = JSON.parse(decodeURIComponent(s)); 
+            document.getElementById('modal-course-form').style.display='flex'; 
+            document.getElementById('modal-course-title').innerText="編輯教材"; 
+            document.getElementById('inp-id').value = d.id; 
+            document.getElementById('inp-order').value = d.order; 
+            document.getElementById('inp-title').value = d.title; 
+            document.getElementById('inp-vid').value = d.youtubeId; 
+            document.getElementById('inp-summary').value = d.summary; 
+            document.getElementById('inp-code').value = d.code; 
+            document.getElementById('inp-active').value = d.isActive;
+            document.getElementById('inp-date').value = d.releaseDate || ""; // 帶入日期
+        }
+        
+        // 儲存邏輯修復：判斷 update 或 add
+        window.app.saveCourse = async function() {
+            const id = document.getElementById('inp-id').value;
+            const p = {
+                order: Number(document.getElementById('inp-order').value), 
+                title: document.getElementById('inp-title').value, 
+                youtubeId: document.getElementById('inp-vid').value, 
+                summary: document.getElementById('inp-summary').value, 
+                code: document.getElementById('inp-code').value, 
+                isActive: document.getElementById('inp-active').value === 'true',
+                releaseDate: document.getElementById('inp-date').value, // 儲存日期
+                updatedAt: new Date()
+            };
+            try { 
+                if(id) {
+                    // 編輯模式：更新
+                    await updateDoc(doc(db, "units", id), p); 
+                } else { 
+                    // 新增模式：建立
+                    p.createdAt = new Date(); 
+                    await addDoc(collection(db, "units"), p); 
+                } 
+                window.app.closeCourseModal(); 
+            } catch(e){ alert(e.message); }
+        }
+        
         window.app.delCourse = async function(id) { if(confirm("確定刪除?")) await deleteDoc(doc(db,"units",id)); }
         window.app.toggleStatus = async function(id,s) { await updateDoc(doc(db,"units",id),{isActive:!s}); }
     </script>

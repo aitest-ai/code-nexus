@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus - Student Ultimate (V8.0 All Features)</title>
+    <title>Code Nexus - Student Ultimate (V8.1 Full Feature)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -497,7 +497,7 @@
             // 2. 上傳學習紀錄函式 (讓教師後台看得到數據)
             window.uploadToFirebase = async function(dataPayload) {
                 try {
-                    // 加上伺服器時間戳記
+                    // 加上伺服器時間戳記 (模擬)
                     dataPayload.createdAt = new Date();
                     // 寫入 'records' 集合
                     await addDoc(collection(db, "records"), dataPayload);
@@ -640,6 +640,7 @@ else:
             const prompt = `[任務] 根據教材設計 3 道 Python 練習題（低中高）。\n教材:${window.LESSON_CONFIG.summary}\n範例:${window.LESSON_CONFIG.code}\n回傳JSON:{"low":{"title":"","desc":"","hint":""},"mid":{...},"high":{...}}`;
             try {
                 const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-gen-ex");
+                console.log("Raw AI Response:", r); // Debug log
                 generatedProblems = JSON.parse(extractJSON(r));
                 document.getElementById('ex-gen-section').style.display = 'none';
                 document.getElementById('ex-solve-section').style.display = 'block';
@@ -647,8 +648,17 @@ else:
                 typeWriterMsg('ai', '題目已生成，請開始挑戰！');
             } catch(e) { console.error(e); }
         }
+        
         function selectDifficulty(level) {
-            if(!generatedProblems) return;
+            // ★★★ 防呆檢查 ★★★
+            if(!generatedProblems || !generatedProblems[level]) {
+                console.error("生成題目資料不全:", generatedProblems);
+                alert("題目生成似乎不完整，請重新點選「讓 AI 生成題目」");
+                document.getElementById('ex-gen-section').style.display = 'block';
+                document.getElementById('ex-solve-section').style.display = 'none';
+                return;
+            }
+            
             currentDifficulty = level;
             document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`btn-${level}`).classList.add('active');
@@ -660,9 +670,10 @@ else:
             document.getElementById('ex-result-text').innerText = "";
             document.getElementById('ex-feedback').style.display = "none";
         }
-        async function runExPython() { const c = document.getElementById('ex-code-editor').value; const o = document.getElementById('ex-output'); o.innerText = "Running...\n"; if (!pyodide) { o.innerText += "Python loading...\n"; return; } try { pyodide.setStdout({batched:(m)=>o.innerText+=m+"\n"}); await pyodide.runPythonAsync(c); } catch(err) { o.innerText += "Error:\n" + err; } }
+        
+        async function runExPython() { const c = document.getElementById('ex-code-editor').value; const o = document.getElementById('ex-output'); o.innerText = "Running...\n"; if (!pyodide) return; try { pyodide.setStdout({batched:(m)=>o.innerText+=m+"\n"}); await pyodide.runPythonAsync(c); } catch(err) { o.innerText += "Error:\n" + err; } }
         async function checkExAnswer() {
-            const c = document.getElementById('ex-code-editor').value; const p = generatedProblems[currentDifficulty]; const btn = document.getElementById('btn-check-ex'); btn.innerText = "檢查中..."; btn.disabled = true;
+            const c = document.getElementById('ex-code-editor').value; const p = generatedProblems[currentDifficulty]; 
             const prompt = `[題目] ${p.title}\n[描述] ${p.desc}\n[代碼] ${c}\n判斷對錯回傳JSON:{"correct":true/false,"feedback":"..."}`;
             try {
                 const r = await safeCallAI(prompt, "You are a Tutor.", "btn-check-ex");
@@ -724,7 +735,6 @@ else:
         
         async function triggerAIReview() {
             document.getElementById('ai-result').style.display='block'; document.getElementById('ai-comment-cell').innerText = "AI 評分中...";
-            // Prompt 嚴格要求 Array 格式
             const prompt = `${PROMPT_STRICT_GRADING} 題目：${sessionData.probTitle} 敘述：${sessionData.probDesc} 代碼：${sessionData.probCode}`;
             try { 
                 const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-ai-review"); // Use safeCall
@@ -829,7 +839,17 @@ else:
         function switchPhase(p) { tabSwitchCount++; currentPhase=p; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); document.querySelectorAll('.content-area').forEach(c=>c.classList.remove('active')); const idx=['learning','exercise','posing','ai-review','human-review','reflection'].indexOf(p); document.querySelectorAll('.tab-btn')[idx].classList.add('active'); document.querySelectorAll('.content-area')[idx].classList.add('active'); log('NAV',p); }
         function typeWriterMsg(r,t) { const box = document.getElementById('chat-msgs'); const div = document.createElement('div'); div.className = `msg ${r} typing-cursor`; box.appendChild(div); let i = 0; const tm = setInterval(()=>{ text = t || ""; div.innerHTML = marked.parse(text.substring(0, i++)); box.scrollTop = 99999; if(i>text.length){ clearInterval(tm); div.classList.remove('typing-cursor'); } }, 20); }
         function typeWriterText(e,t) { let i = 0; const tm = setInterval(()=>{ e.innerHTML = marked.parse(t.substring(0, i++)); if(i>t.length) clearInterval(tm); }, 15); }
-        function extractJSON(s) { const a=s.indexOf('{'),b=s.lastIndexOf('}'); return (a!=-1&&b!=-1)?s.substring(a,b+1):"{}"; }
+        
+        // ★★★ 增強版 JSON 解析器 ★★★
+        function extractJSON(s) { 
+            const a = s.indexOf('{'); 
+            const b = s.lastIndexOf('}'); 
+            if (a !== -1 && b !== -1) {
+                return s.substring(a, b + 1);
+            }
+            return "{}"; 
+        }
+        
         async function sendToGAS(d) { 
             if(window.uploadToFirebase) window.uploadToFirebase(d); 
             if(GAS_URL.startsWith("http")) await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); 

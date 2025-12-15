@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus - Student Ultimate (V8.2 Input Fix)</title>
+    <title>Code Nexus - Student V9.0 (Auto-Retry)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -236,8 +236,8 @@
         .diff-btn { background: #222; border: 1px solid #444; color: #ccc; padding: 10px 20px; margin-right: 10px; cursor: pointer; border-radius: 20px; transition: 0.3s; }
         .diff-btn:hover { border-color: var(--accent); color: white; }
         .diff-btn.active { background: var(--accent); color: black; font-weight: bold; border-color: var(--accent); }
-        
-        /* 覆蓋層 (Overlays) & 治療樣式修正 */
+
+        /* 覆蓋層 (Overlays) */
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,5,5,0.95); z-index: 1000; display: none; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
         #face-lock-overlay { backdrop-filter: blur(10px); background: rgba(0,0,0,0.85); z-index: 3000; }
         .lock-icon { font-size: 50px; margin-bottom: 20px; animation: pulse 1s infinite; }
@@ -268,10 +268,6 @@
             overflow-y: auto;
             width: 100%;
         }
-        
-        /* 隱藏的急救按鈕 */
-        .reset-ui-btn { font-size: 0.6em; color: #555; cursor: pointer; text-decoration: underline; margin-left: 10px; font-weight: normal; }
-        .reset-ui-btn:hover { color: var(--accent); }
     </style>
 </head>
 <body>
@@ -301,7 +297,7 @@
     </div>
 
     <div class="panel-left">
-        <div class="header">NEXUS <span class="reset-ui-btn" onclick="forceResetUI()" title="如果按鈕卡住請按我">🔄重置</span></div>
+        <div class="header">NEXUS</div>
         <div id="display-student-id" style="text-align:center; color:#888; margin-bottom:10px;">未登入</div>
         <div class="cam-box"><video id="video" autoplay muted playsinline></video></div>
         <div class="status-box">
@@ -566,34 +562,54 @@ else:
         // ★★★ 修正後的治療 Prompt (限制長度) ★★★
         const PROMPT_THERAPY_STYLE = `使用者壓力過高。請講一個「30字以內」的極短工程師笑話或鼓勵的話。一定要短。`;
 
-        // === API 呼叫防呆機制 (Timeout Wrapper) ===
-        const timeoutPromise = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error("請求超時 (Timeout)")), ms));
-
-        async function safeCallAI(prompt, system, buttonId) {
+        // === API 呼叫防呆機制 (Timeout Wrapper + Auto Retry) ===
+        // V9.0 Upgrade: Auto-Retry Logic
+        async function safeCallAI(prompt, system, buttonId, retryCount = 0) {
+            const MAX_RETRIES = 3; // 最多重試 3 次
             const btn = document.getElementById(buttonId);
-            if(btn) { btn.innerText = "思考中..."; btn.disabled = true; }
+            
+            if(btn) { 
+                if (retryCount === 0) btn.innerText = "思考中...";
+                else btn.innerText = `連線不穩，自動重試中 (${retryCount}/${MAX_RETRIES})...`;
+                btn.disabled = true; 
+            }
             
             try {
                 // 最長等待 20 秒
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("請求超時")), 20000));
+                
                 const result = await Promise.race([
                     callGemini(prompt, system),
-                    timeoutPromise(20000)
+                    timeoutPromise
                 ]);
+                
+                if(btn) { btn.innerText = "成功！"; setTimeout(()=>btn.innerText="送出", 1000); btn.disabled = false; }
                 return result;
+
             } catch(e) {
-                alert("AI 連線錯誤或超時，請重試。\n" + e.message);
-                throw e; // 讓外層 catch 處理
-            } finally {
-                if(btn) { btn.innerText = "重試 / 送出"; btn.disabled = false; }
+                console.warn(`Attempt ${retryCount + 1} failed:`, e);
+                
+                if (retryCount < MAX_RETRIES) {
+                    // 等待 2 秒後重試
+                    await new Promise(r => setTimeout(r, 2000));
+                    return safeCallAI(prompt, system, buttonId, retryCount + 1);
+                } else {
+                    alert("AI 連線失敗，請檢查網路或稍後再試。\n" + e.message);
+                    if(btn) { btn.innerText = "重試 / 送出"; btn.disabled = false; }
+                    throw e; // 讓外層 catch 處理
+                }
             }
         }
 
         // === ★★★ Python Input Fix (Stdin Handler) ★★★ ===
-        // 修正：當 Pyodide 執行 input() 時，強制跳出 prompt
+        // 修正：當 Pyodide 執行 input() 時，強制跳出 prompt，並正確處理 null 與 \n
         function handlePythonInput(msg) {
             let result = window.prompt(msg || "Python 程式正在請求輸入 (Input):");
-            // Python 的 input() 期待一個換行符號來結束輸入，否則會卡住
-            if (result === null) return "\n"; // 取消則回傳空行
+            if (result === null) {
+                // 使用者按取消 -> 給空字串並換行，防止 Python 卡死
+                return "\n"; 
+            }
+            // 必須加上換行，Python input() 才會結束等待
             return result + "\n"; 
         }
 
@@ -639,11 +655,11 @@ else:
         // Phase 2: 練習區
         // ===============================================
         async function generatePracticeProblems() {
-            const btn = document.getElementById('btn-gen-ex'); btn.innerText = "生成中..."; btn.disabled = true;
             const prompt = `[任務] 根據教材設計 3 道 Python 練習題（低中高）。\n教材:${window.LESSON_CONFIG.summary}\n範例:${window.LESSON_CONFIG.code}\n回傳JSON:{"low":{"title":"","desc":"","hint":""},"mid":{...},"high":{...}}`;
             try {
+                // 使用自動重試機制
                 const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-gen-ex");
-                console.log("Raw AI Response:", r); // Debug log
+                console.log("Raw AI Response:", r); 
                 generatedProblems = JSON.parse(extractJSON(r));
                 document.getElementById('ex-gen-section').style.display = 'none';
                 document.getElementById('ex-solve-section').style.display = 'block';
@@ -651,8 +667,9 @@ else:
                 typeWriterMsg('ai', '題目已生成，請開始挑戰！');
             } catch(e) { console.error(e); }
         }
+        
         function selectDifficulty(level) {
-            // ★★★ 防呆檢查 ★★★
+            // 防呆檢查
             if(!generatedProblems || !generatedProblems[level]) {
                 console.error("生成題目資料不全:", generatedProblems);
                 alert("題目生成似乎不完整，請重新點選「讓 AI 生成題目」");
@@ -672,9 +689,10 @@ else:
             document.getElementById('ex-result-text').innerText = "";
             document.getElementById('ex-feedback').style.display = "none";
         }
+        
         async function runExPython() { const c = document.getElementById('ex-code-editor').value; const o = document.getElementById('ex-output'); o.innerText = "Running...\n"; if (!pyodide) { o.innerText += "Python loading...\n"; return; } try { pyodide.setStdout({batched:(m)=>o.innerText+=m+"\n"}); await pyodide.runPythonAsync(c); } catch(err) { o.innerText += "Error:\n" + err; } }
         async function checkExAnswer() {
-            const c = document.getElementById('ex-code-editor').value; const p = generatedProblems[currentDifficulty]; const btn = document.getElementById('btn-check-ex'); btn.innerText = "檢查中..."; btn.disabled = true;
+            const c = document.getElementById('ex-code-editor').value; const p = generatedProblems[currentDifficulty]; const btn = document.getElementById('btn-check-ex'); 
             const prompt = `[題目] ${p.title}\n[描述] ${p.desc}\n[代碼] ${c}\n判斷對錯回傳JSON:{"correct":true/false,"feedback":"..."}`;
             try {
                 const r = await safeCallAI(prompt, "You are a Tutor.", "btn-check-ex");
@@ -738,7 +756,7 @@ else:
             document.getElementById('ai-result').style.display='block'; document.getElementById('ai-comment-cell').innerText = "AI 評分中...";
             const prompt = `${PROMPT_STRICT_GRADING} 題目：${sessionData.probTitle} 敘述：${sessionData.probDesc} 代碼：${sessionData.probCode}`;
             try { 
-                const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-ai-review"); // Use safeCall
+                const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-ai-review"); 
                 const json = JSON.parse(extractJSON(r)); 
                 sessionData.aiScores = json.scores; sessionData.aiComment = json.comment;
                 
@@ -847,15 +865,6 @@ else:
         }
         function log(t,d) { if(t!=='ACT'&&t!=='CHAT') sendToGAS({type:'LOG',studentId,action:t,detail:d}); }
         function stopTherapy() { document.getElementById('therapy-overlay').style.display='none'; stressScore=40; isPaused=false; }
-        
-        // 萬一卡死，手動重置 UI
-        function forceResetUI() {
-            document.querySelectorAll('button').forEach(b => {
-                b.disabled = false;
-                if(b.innerText.includes("...")) b.innerText = "重試";
-            });
-            alert("介面已強制重置");
-        }
     </script>
 </body>
 </html>

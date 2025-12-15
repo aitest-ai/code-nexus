@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code Nexus - Teacher V8.1 (Chart Optimized)</title>
+    <title>Code Nexus - Teacher V9.1 (All Features Intact)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
         /* =========================================
-           1. 基礎樣式與排版
+           1. 核心樣式與排版
            ========================================= */
         :root { 
             --sidebar-bg: #1a1a1a; 
@@ -81,13 +81,13 @@
         }
         .header h2 { margin: 0; color: var(--text-dark); font-size: 1.8em; }
 
-        /* 視圖切換 */
+        /* 視圖切換動畫 */
         .view-section { display: none; animation: fadeIn 0.3s ease; }
         .view-section.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         /* =========================================
-           2. 儀表板與表格
+           2. 儀表板與表格組件
            ========================================= */
         .dashboard-grid { 
             display: grid; 
@@ -140,6 +140,7 @@
         .badge-active { background: #d4edda; color: #155724; }
         .badge-draft { background: #f8d7da; color: #721c24; }
         .badge-date { background: #e2e3e5; color: #383d41; font-family: monospace; }
+        .badge-unit { background: #cce5ff; color: #004085; }
 
         .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.9em; transition: 0.2s; display: inline-flex; align-items: center; gap: 5px; }
         .btn-primary { background: var(--accent); color: white; box-shadow: 0 4px 10px rgba(0,123,255,0.3); }
@@ -150,7 +151,7 @@
         .btn-icon:hover { opacity: 1; transform: scale(1.1); }
 
         /* =========================================
-           3. Modal 視窗
+           3. Modal 與 學習歷程 (Portfolio)
            ========================================= */
         .modal-overlay { 
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
@@ -172,23 +173,29 @@
             border-bottom: 1px solid #ddd; 
             display: flex; justify-content: space-between; align-items: center; 
         }
-        .modal-body { 
-            flex: 1; padding: 30px; 
-            overflow-y: auto; 
-            display: grid; grid-template-columns: 1fr 1fr; gap: 20px; 
-        }
         
+        /* 詳情頁分頁導航 */
+        .detail-tabs { display: flex; background: white; border-bottom: 1px solid #ddd; padding: 0 30px; }
+        .detail-tab { padding: 15px 20px; cursor: pointer; color: #666; border-bottom: 3px solid transparent; transition: 0.2s; }
+        .detail-tab:hover { color: var(--accent); }
+        .detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: bold; }
+        
+        .modal-body { flex: 1; padding: 30px; overflow-y: auto; display: none; }
+        .modal-body.active { display: block; } /* 控制分頁顯示 */
+
         .detail-card { 
             background: white; 
             border-radius: 10px; 
-            padding: 20px; 
+            padding: 25px; 
             box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
             break-inside: avoid; 
             margin-bottom: 20px; 
         }
         .detail-card h4 { 
-            margin-top: 0; color: var(--accent); 
-            border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; 
+            margin-top: 0; 
+            color: var(--accent); 
+            border-bottom: 2px solid #f0f0f0; 
+            padding-bottom: 10px; 
         }
         .info-row { 
             display: flex; justify-content: space-between; 
@@ -202,19 +209,20 @@
             font-size: 0.9em; margin-top: 10px; 
         }
         .chat-log-box { 
-            max-height: 250px; overflow-y: auto; 
-            background: #f9f9f9; padding: 10px; 
-            border-radius: 6px; font-size: 0.85em; 
+            max-height: 400px; overflow-y: auto; 
+            background: #f9f9f9; padding: 15px; 
+            border-radius: 6px; font-size: 0.9em; 
         }
-        .chat-item { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+        .chat-item { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
         .chat-user { color: #007bff; font-weight: bold; }
         .chat-ai { color: #28a745; font-weight: bold; }
 
-        /* 編輯教材小 Modal */
+        /* 一般編輯 Modal (課程/題目) */
         .modal-small { 
-            background: white; width: 500px; 
+            background: white; width: 600px; 
             padding: 30px; border-radius: 12px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-height: 90vh; overflow-y: auto;
         }
         .form-group { margin-bottom: 15px; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
@@ -231,7 +239,8 @@
     <div class="sidebar">
         <div class="brand">🚀 Code Nexus Pro</div>
         <div class="menu-item active" onclick="app.switchView('dashboard')">📊 數據儀表板</div>
-        <div class="menu-item" onclick="app.switchView('courses')">📚 課程排程管理</div>
+        <div class="menu-item" onclick="app.switchView('courses')">📚 課程與排程</div>
+        <div class="menu-item" onclick="app.switchView('questions')">🧩 題庫審核</div>
         <div class="menu-item" onclick="app.switchView('students')">🎓 學生名單</div>
         <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid #333; font-size: 0.8em; color: #666;">Status: <span style="color:#00ff9d">Online</span></div>
     </div>
@@ -245,7 +254,7 @@
                     <h3>總課程單元</h3><div class="number" id="stat-units">0</div>
                 </div>
                 <div class="stat-card">
-                    <h3>已開放課程</h3><div class="number" id="stat-active" style="color:#00b894">0</div>
+                    <h3>學生出題總數</h3><div class="number" id="stat-questions">0</div>
                 </div>
                 <div class="stat-card">
                     <h3>活躍學生數</h3><div class="number" id="stat-students" style="color:#007bff">0</div>
@@ -270,6 +279,21 @@
             </div>
         </div>
 
+        <div id="view-questions" class="view-section">
+            <div class="header">
+                <h2>學生題庫審核中心</h2>
+            </div>
+            <div style="background:#fff; padding:15px; margin-bottom:20px; border-radius:8px; color:#666; font-size:0.9em;">
+                💡 說明：此處收集所有學生在「擬題階段」送出的題目。老師可進行修改或刪除。未被刪除的題目將自動進入該單元的同儕互評池。
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead><tr><th>單元</th><th>學生</th><th>題目名稱</th><th>AI 評分</th><th>操作</th></tr></thead>
+                    <tbody id="question-list-body"><tr><td colspan="5" style="text-align:center;">載入中...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
         <div id="view-students" class="view-section">
             <div class="header"><h2>學生學習狀況</h2></div>
             <div class="table-container">
@@ -287,28 +311,43 @@
                 <h2 style="margin:0;">📄 學習歷程檔案：<span id="detail-student-id" style="color:var(--accent);">--</span></h2>
                 <button class="btn btn-outline" onclick="app.closeDetailModal()">❌ 關閉</button>
             </div>
-            <div class="modal-body" id="detail-body">
+            
+            <div class="detail-tabs">
+                <div class="detail-tab active" onclick="app.switchDetailTab('overview')">📊 總覽圖表</div>
+                <div class="detail-tab" onclick="app.switchDetailTab('learning')">🎥 學習與練習</div>
+                <div class="detail-tab" onclick="app.switchDetailTab('posing')">📝 擬題與互評</div>
+                <div class="detail-tab" onclick="app.switchDetailTab('reflection')">🤔 反思心得</div>
+                <div class="detail-tab" onclick="app.switchDetailTab('chat')">💬 AI 對話</div>
+            </div>
+            
+            <div id="tab-overview" class="modal-body active">
+                <div class="detail-card">
+                    <h4>📈 壓力指數趨勢 (優化顯示：0-50 放大至 100%)</h4>
+                    <p style="color:#666; font-size:0.9em; margin-bottom:15px;">說明：為了更清晰顯示波動，圖表將原始數值 0-50 放大為 0-100% 呈現。背景色代表壓力區間 (綠=低壓, 黃=中壓, 紅=高壓)。</p>
+                    <div style="height: 350px; width: 100%;"><canvas id="emotionChart"></canvas></div>
                 </div>
+            </div>
+
+            <div id="tab-learning" class="modal-body"></div>
+
+            <div id="tab-posing" class="modal-body"></div>
+
+            <div id="tab-reflection" class="modal-body"></div>
+
+            <div id="tab-chat" class="modal-body"></div>
         </div>
     </div>
 
-    <div id="modal-course-form" class="modal-overlay">
+    <div id="modal-form" class="modal-overlay">
         <div class="modal-small">
-            <h3 id="modal-course-title">新增教材</h3>
+            <h3 id="form-title">編輯</h3>
             <input type="hidden" id="inp-id">
-            <div class="form-group"><label>排序 (Order)</label><input type="number" id="inp-order" class="form-input" value="1"></div>
+            <input type="hidden" id="inp-type"> <div id="form-fields">
+                </div>
             
-            <div class="form-group"><label>📅 開放日期 (Publish Date)</label><input type="date" id="inp-date" class="form-input"></div>
-            
-            <div class="form-group"><label>單元標題</label><input type="text" id="inp-title" class="form-input" placeholder="例如：Python 基礎"></div>
-            <div class="form-group"><label>YouTube ID</label><input type="text" id="inp-vid" class="form-input" placeholder="例如：dQw4w9WgXcQ"></div>
-            <div class="form-group"><label>教材摘要 (給 AI 出題用)</label><input type="text" id="inp-summary" class="form-input"></div>
-            <div class="form-group"><label>範例代碼</label><textarea id="inp-code" class="form-input" style="height:80px;"></textarea></div>
-            <div class="form-group"><label>狀態</label><select id="inp-active" class="form-input"><option value="true">上架 (Active)</option><option value="false">草稿 (Draft)</option></select></div>
-            
-            <div style="text-align:right;">
-                <button class="btn" style="background:#eee;" onclick="app.closeCourseModal()">取消</button> 
-                <button class="btn btn-primary" onclick="app.saveCourse()">儲存設定</button>
+            <div style="text-align:right; margin-top:20px;">
+                <button class="btn" style="background:#eee;" onclick="document.getElementById('modal-form').style.display='none'">取消</button> 
+                <button class="btn btn-primary" onclick="app.saveForm()">儲存設定</button>
             </div>
         </div>
     </div>
@@ -334,6 +373,7 @@
         let db;
         let chartInstance = null;
         let emotionChartInstance = null;
+        let currentDetailData = null; // 暫存目前查看的學生資料
 
         try {
             if (firebaseConfig.projectId.includes("YOUR_PROJECT")) throw new Error("請先填入 Firebase Config！");
@@ -343,25 +383,39 @@
         } catch (e) { alert("系統錯誤: " + e.message); }
 
         function initListeners() {
-            // 監聽課程
+            // 1. 課程監聽
             onSnapshot(query(collection(db, "units"), orderBy("order", "asc")), snap => {
                 const units = []; let activeCount = 0;
                 snap.forEach(d => { const data=d.data(); units.push({id:d.id, ...data}); if(data.isActive) activeCount++; });
                 renderCourses(units); updateDash(units.length, activeCount);
             });
 
-            // 監聽學生紀錄
+            // 2. 學生與題庫監聽 (監聽 records 集合)
             onSnapshot(collection(db, "records"), snap => {
                 const students = {};
+                const questions = [];
+                
                 snap.forEach(d => {
                     const data = d.data();
-                    if(!data.studentId) return;
-                    if(!students[data.studentId] || data.createdAt > students[data.studentId].createdAt) {
-                        students[data.studentId] = { id: data.studentId, lastAction: data.type, time: data.createdAt };
+                    const r = { id: d.id, ...data };
+                    
+                    // 彙整學生狀態 (取最新一筆活動)
+                    if(data.studentId) {
+                        if(!students[data.studentId] || data.createdAt > students[data.studentId].createdAt) {
+                            students[data.studentId] = { id: data.studentId, lastAction: data.type, time: data.createdAt };
+                        }
+                    }
+                    
+                    // 彙整題庫 (篩選 Phase 3 的資料)
+                    if(data.type === 'PHASE_3_POSING') {
+                        questions.push(r);
                     }
                 });
+                
                 renderStudents(Object.values(students));
+                renderQuestions(questions);
                 document.getElementById('stat-students').innerText = Object.keys(students).length;
+                document.getElementById('stat-questions').innerText = questions.length;
             });
         }
 
@@ -375,9 +429,9 @@
                     <td>${u.youtubeId}</td>
                     <td>${u.isActive?'<span class="badge badge-active">上架</span>':'<span class="badge badge-draft">草稿</span>'}</td>
                     <td>
-                        <button class="btn-icon" onclick="app.editCourse('${encodeURIComponent(JSON.stringify(u))}')">✏️</button>
+                        <button class="btn-icon" onclick="app.openForm('course', '${encodeURIComponent(JSON.stringify(u))}')">✏️</button>
                         <button class="btn-icon" onclick="app.toggleStatus('${u.id}',${u.isActive})">🔄</button>
-                        <button class="btn-icon" style="color:red;" onclick="app.delCourse('${u.id}')">🗑️</button>
+                        <button class="btn-icon" style="color:red;" onclick="app.delDoc('units','${u.id}')">🗑️</button>
                     </td>
                 </tr>`).join('');
         }
@@ -395,6 +449,24 @@
             }).join('');
         }
 
+        function renderQuestions(list) {
+            document.getElementById('question-list-body').innerHTML = list.map(q => {
+                const unitName = q.unitTitle || "未分類"; 
+                // 計算平均分 (若有)
+                const scoreAvg = q.aiScores ? (q.aiScores.reduce((a,b)=>Number(a)+Number(b),0)/5).toFixed(1) : '-';
+                return `<tr>
+                    <td><span class="badge badge-unit">${unitName}</span></td>
+                    <td>${q.studentId}</td>
+                    <td><b>${q.probTitle}</b></td>
+                    <td>⭐ ${scoreAvg}</td>
+                    <td>
+                        <button class="btn-icon" onclick="app.openForm('question', '${encodeURIComponent(JSON.stringify(q))}')">✏️</button>
+                        <button class="btn-icon" style="color:red;" onclick="app.delDoc('records','${q.id}')">🗑️</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
         function updateDash(total, active) {
             document.getElementById('stat-units').innerText = total; document.getElementById('stat-active').innerText = active;
             const ctx = document.getElementById('mainChart').getContext('2d');
@@ -402,17 +474,22 @@
             chartInstance = new Chart(ctx, { type: 'doughnut', data: { labels: ['上架', '草稿'], datasets: [{ data: [active, total-active], backgroundColor: ['#00b894', '#ff7675'], borderWidth:0 }] }, options:{ maintainAspectRatio:false } });
         }
 
-        // === 學生詳情 (含圖表優化) ===
+        // === 學生詳情 (Tabbed Portfolio) ===
         window.app.viewDetail = async function(sid) {
             document.getElementById('detail-student-id').innerText = sid;
-            const body = document.getElementById('detail-body');
-            body.innerHTML = 'Loading...';
             document.getElementById('modal-student-detail').style.display = 'flex';
+            
+            // 重置 Tab
+            document.querySelectorAll('.detail-tab').forEach(t=>t.classList.remove('active'));
+            document.querySelectorAll('.modal-body').forEach(b=>b.classList.remove('active'));
+            document.querySelector('.detail-tab:first-child').classList.add('active');
+            document.getElementById('tab-overview').classList.add('active');
 
+            // 抓取資料
             const q = query(collection(db, "records"), where("studentId", "==", sid), orderBy("createdAt", "asc"));
             const snap = await getDocs(q);
             
-            const data = { learning: null, exercise: [], posing: null, aiReview: null, reflection: null, chats: [], monitors: [] };
+            const data = { learning: null, exercise: [], posing: null, aiReview: null, peerReviews: [], reflection: null, chats: [], monitors: [] };
 
             snap.forEach(d => {
                 const r = d.data();
@@ -420,153 +497,180 @@
                 if(r.type === 'PHASE_2_EXERCISE') data.exercise.push(r);
                 if(r.type === 'PHASE_3_POSING') data.posing = r;
                 if(r.type === 'PHASE_4_AI') data.aiReview = r;
+                if(r.type === 'PHASE_5_PEER') data.peerReviews.push(r);
                 if(r.type === 'PHASE_6_REFLECTION') data.reflection = r;
                 if(r.type === 'CHAT_LOG') data.chats.push(r);
                 if(r.type === 'MONITOR_LOG') data.monitors.push(r);
             });
-
-            let html = "";
-            // 1. 圖表區
-            html += `<div class="detail-card" style="grid-column: span 2;">
-                <h4>📈 壓力與情緒趨勢 (Stress Monitor - Zoomed 0-50)</h4>
-                <div style="height: 250px; width: 100%;"><canvas id="emotionChart"></canvas></div>
-            </div>`;
             
-            // 2. 學習紀錄
-            const ex = data.exercise[data.exercise.length - 1];
-            html += `<div class="detail-card"><h4>🎥 學習與練習</h4>
-                <div class="info-row"><span style="color:#888">閱讀時長</span><b>${data.learning ? data.learning.readingTime+'秒' : '--'}</b></div>
-                <div class="info-row"><span style="color:#888">練習題狀態</span>${ex ? '<span class="badge badge-active">已完成</span>' : '<span class="badge badge-draft">未完成</span>'}</div>
-                ${ex ? `<div class="code-block">${escapeHtml(ex.code)}</div>` : ''}
-            </div>`;
+            currentDetailData = data; 
+            renderDetailCharts();
+            renderOtherTabs();
+        }
 
-            // 3. AI 評分
-            const ai = data.aiReview;
-            let scoreTbl = ai && ai.aiScores ? `
+        window.app.switchDetailTab = function(tabName) {
+            document.querySelectorAll('.detail-tab').forEach(t=>t.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            document.querySelectorAll('.modal-body').forEach(b=>b.classList.remove('active'));
+            document.getElementById('tab-'+tabName).classList.add('active');
+        }
+
+        function renderDetailCharts() {
+            if(!currentDetailData) return;
+            const ctx = document.getElementById('emotionChart').getContext('2d');
+            if(emotionChartInstance) emotionChartInstance.destroy();
+            
+            // ★★★ 壓力圖表修正：0-50 放大映射到 0-100 ★★★
+            const labels = currentDetailData.monitors.map(m => new Date(m.createdAt.seconds * 1000).toLocaleTimeString());
+            const stressData = currentDetailData.monitors.map(m => Math.min(m.stress * 2, 100)); // 放大2倍，最高100
+
+            // 漸層背景 (紅-黃-綠)
+            const gradient = ctx.createLinearGradient(0, 300, 0, 0);
+            gradient.addColorStop(0, 'rgba(0, 255, 157, 0.2)');   // Green (Low)
+            gradient.addColorStop(0.5, 'rgba(255, 204, 0, 0.2)'); // Yellow (Mid)
+            gradient.addColorStop(1, 'rgba(255, 51, 51, 0.3)');   // Red (High)
+
+            emotionChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '壓力強度 (0-50 scale magnified)',
+                        data: stressData,
+                        borderColor: '#555',
+                        borderWidth: 2,
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { 
+                        y: { 
+                            min: 0, max: 100, 
+                            title: {display:true, text:'壓力百分比 %'},
+                            ticks: { callback: function(val) { return val + '%'; } } // 顯示百分比
+                        },
+                        x: { grid: {display:false} }
+                    },
+                    plugins: { tooltip: { callbacks: { label: (c)=> `壓力強度: ${c.raw}% (原始值: ${c.raw/2})` } } }
+                }
+            });
+        }
+
+        function renderOtherTabs() {
+            const d = currentDetailData;
+            
+            // Tab 2: 學習
+            const ex = d.exercise[d.exercise.length - 1];
+            document.getElementById('tab-learning').innerHTML = `
+                <div class="detail-card"><h4>🎥 學習階段</h4>
+                    <div class="info-row"><span class="info-label">閱讀時長</span><b>${d.learning ? d.learning.readingTime+'秒' : '未完成'}</b></div>
+                </div>
+                <div class="detail-card"><h4>🏋️ 練習階段</h4>
+                    <div class="info-row"><span class="info-label">最新狀態</span>${ex ? `<span class="badge badge-active">${ex.passed}</span>` : '未開始'}</div>
+                    ${ex ? `<div class="code-block">${escapeHtml(ex.code)}</div><div style="color:#666; margin-top:5px;">AI: ${ex.feedback}</div>` : ''}
+                </div>`;
+
+            // Tab 3: 擬題與互評
+            let scoreTbl = d.aiReview && d.aiReview.aiScores ? `
                 <table style="width:100%; text-align:center; font-size:0.9em; margin-top:5px; border:1px solid #eee;">
                     <tr style="background:#f9f9f9"><th>正確</th><th>邏輯</th><th>實用</th><th>代碼</th><th>可讀</th></tr>
-                    <tr><td>${ai.aiScores[0]}</td><td>${ai.aiScores[1]}</td><td>${ai.aiScores[2]}</td><td>${ai.aiScores[3]}</td><td>${ai.aiScores[4]}</td></tr>
-                </table><div style="margin-top:5px; font-size:0.8em; color:#666;">${ai.aiComment}</div>` : '尚無評分';
+                    <tr><td>${d.aiReview.aiScores[0]}</td><td>${d.aiReview.aiScores[1]}</td><td>${d.aiReview.aiScores[2]}</td><td>${d.aiReview.aiScores[3]}</td><td>${d.aiReview.aiScores[4]}</td></tr>
+                </table><div style="margin-top:5px; font-size:0.8em; color:#666;">AI: ${d.aiReview.aiComment}</div>` : '尚無評分';
             
-            html += `<div class="detail-card"><h4>🤖 出題與 AI 評閱</h4>${data.posing ? `題目：<b>${data.posing.probTitle}</b>` : ''}${scoreTbl}</div>`;
+            let peerHtml = d.peerReviews.length > 0 ? d.peerReviews.map(p => `
+                <div style="border-top:1px dashed #eee; padding:10px 0;">
+                    <div class="info-row"><span>評閱題目：<b>${p.targetTitle}</b></span><span>給分：${p.scores.join(', ')}</span></div>
+                    <div style="font-size:0.9em; color:#555;">評語：${p.comment}</div>
+                </div>`).join('') : '<p>尚未評閱他人</p>';
 
-            // 4. 對話
-            html += `<div class="detail-card" style="grid-row: span 2;"><h4>💬 對話紀錄</h4><div class="chat-log-box">${data.chats.map(c=>`<div class="chat-item"><span class="chat-user">S: ${c.userMsg}</span><br><span class="chat-ai">AI: ${c.aiMsg}</span></div>`).join('')}</div></div>`;
+            document.getElementById('tab-posing').innerHTML = `
+                <div class="detail-card"><h4>📝 我出的題目</h4>${d.posing ? `題目：<b>${d.posing.probTitle}</b><br>敘述：${d.posing.probDesc}<div class="code-block">${escapeHtml(d.posing.probCode)}</div>` : '未出題'}${scoreTbl}</div>
+                <div class="detail-card"><h4>👀 我對同學的互評</h4>${peerHtml}</div>`;
 
-            body.innerHTML = html;
+            // Tab 4: 反思
+            document.getElementById('tab-reflection').innerHTML = `<div class="detail-card"><h4>🤔 反思心得</h4><p style="line-height:1.6;">${d.reflection ? d.reflection.reflection : '尚未填寫'}</p></div>`;
 
-            // ★★★ 繪製優化後的圖表 (放大顯示 0-50 範圍) ★★★
-            setTimeout(() => {
-                const ctx = document.getElementById('emotionChart').getContext('2d');
-                if(emotionChartInstance) emotionChartInstance.destroy();
-                
-                // 建立背景漸層 (綠->黃->紅)
-                const gradient = ctx.createLinearGradient(0, 250, 0, 0);
-                gradient.addColorStop(0, 'rgba(0, 255, 157, 0.2)');   // 0% (數值0)
-                gradient.addColorStop(0.5, 'rgba(255, 204, 0, 0.2)'); // 50% (數值25)
-                gradient.addColorStop(1, 'rgba(255, 51, 51, 0.3)');   // 100% (數值50)
-
-                const labels = data.monitors.map(m => new Date(m.createdAt.seconds * 1000).toLocaleTimeString());
-                const stressData = data.monitors.map(m => m.stress);
-
-                emotionChartInstance = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: '壓力指數',
-                            data: stressData,
-                            borderColor: '#555',
-                            borderWidth: 2,
-                            backgroundColor: gradient, // 套用漸層
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 0
-                        }]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: { 
-                            // ★★★ 關鍵修改：鎖定 Y 軸 0-50，並用 callback 顯示為百分比 ★★★
-                            y: { 
-                                min: 0, 
-                                max: 50, 
-                                title: {display:true, text:'壓力強度 (等比放大 200%)'},
-                                ticks: {
-                                    callback: function(value) {
-                                        return (value * 2) + '%'; // 數值 50 顯示為 100%
-                                    }
-                                }
-                            }, 
-                            x: { grid: {display:false} }
-                        },
-                        plugins: { 
-                            tooltip: { 
-                                callbacks: { 
-                                    label: (c)=> `原始壓力: ${c.raw} (顯示為: ${c.raw * 2}%)` 
-                                } 
-                            } 
-                        }
-                    }
-                });
-            }, 200);
+            // Tab 5: 對話
+            document.getElementById('tab-chat').innerHTML = `<div class="detail-card"><h4>💬 師生對話紀錄</h4><div class="chat-log-box">${d.chats.map(c=>`<div class="chat-item"><span class="chat-user">S: ${c.userMsg}</span><br><span class="chat-ai">AI: ${c.aiMsg}</span></div>`).join('')}</div></div>`;
         }
 
-        function escapeHtml(text) { return text ? text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; }
+        // === 通用表單處理 (Course & Question) ===
+        window.app.openForm = function(type, dataStr) {
+            const data = dataStr ? JSON.parse(decodeURIComponent(dataStr)) : {};
+            const container = document.getElementById('form-fields');
+            document.getElementById('inp-type').value = type;
+            document.getElementById('inp-id').value = data.id || "";
+            document.getElementById('modal-form').style.display = 'flex';
+            document.getElementById('form-title').innerText = type==='course' ? '編輯教材' : '編輯學生題目';
 
-        // === 課程編輯邏輯 (含修復) ===
-        window.app.switchView = function(n) { document.querySelectorAll('.view-section').forEach(e=>e.classList.remove('active')); document.getElementById('view-'+n).classList.add('active'); document.querySelectorAll('.menu-item').forEach(e=>e.classList.remove('active')); event.currentTarget.classList.add('active'); }
-        window.app.closeDetailModal = function() { document.getElementById('modal-student-detail').style.display='none'; }
-        window.app.openCourseModal = function() { 
-            document.getElementById('modal-course-form').style.display='flex'; 
-            document.getElementById('modal-course-title').innerText="新增教材"; 
-            ['inp-id','inp-title','inp-vid','inp-summary','inp-code','inp-date'].forEach(id=>document.getElementById(id).value="");
+            if(type === 'course') {
+                container.innerHTML = `
+                    <div class="form-group"><label>排序</label><input type="number" id="f-order" class="form-input" value="${data.order||1}"></div>
+                    <div class="form-group"><label>📅 開放日期</label><input type="date" id="f-date" class="form-input" value="${data.releaseDate||''}"></div>
+                    <div class="form-group"><label>標題</label><input type="text" id="f-title" class="form-input" value="${data.title||''}"></div>
+                    <div class="form-group"><label>YouTube ID</label><input type="text" id="f-vid" class="form-input" value="${data.youtubeId||''}"></div>
+                    <div class="form-group"><label>摘要</label><input type="text" id="f-sum" class="form-input" value="${data.summary||''}"></div>
+                    <div class="form-group"><label>代碼</label><textarea id="f-code" class="form-input" style="height:60px;">${data.code||''}</textarea></div>
+                    <div class="form-group"><label>狀態</label><select id="f-active" class="form-input"><option value="true" ${data.isActive?'selected':''}>上架</option><option value="false" ${!data.isActive?'selected':''}>草稿</option></select></div>
+                `;
+            } else if (type === 'question') {
+                container.innerHTML = `
+                    <div class="form-group"><label>所屬單元</label><input type="text" id="f-unit" class="form-input" value="${data.unitTitle||''}" placeholder="請輸入單元名稱以歸類"></div>
+                    <div class="form-group"><label>題目名稱</label><input type="text" id="f-qtitle" class="form-input" value="${data.probTitle||''}"></div>
+                    <div class="form-group"><label>題目敘述</label><textarea id="f-qdesc" class="form-input" style="height:80px;">${data.probDesc||''}</textarea></div>
+                    <div class="form-group"><label>參考解答</label><textarea id="f-qcode" class="form-input" style="height:80px;">${data.probCode||''}</textarea></div>
+                `;
+            }
         }
-        window.app.closeCourseModal = function() { document.getElementById('modal-course-form').style.display='none'; }
-        
-        // 編輯按鈕修復：正確帶入 ID 與 Date
-        window.app.editCourse = function(s) { 
-            const d = JSON.parse(decodeURIComponent(s)); 
-            document.getElementById('modal-course-form').style.display='flex'; 
-            document.getElementById('modal-course-title').innerText="編輯教材"; 
-            document.getElementById('inp-id').value = d.id; 
-            document.getElementById('inp-order').value = d.order; 
-            document.getElementById('inp-title').value = d.title; 
-            document.getElementById('inp-vid').value = d.youtubeId; 
-            document.getElementById('inp-summary').value = d.summary; 
-            document.getElementById('inp-code').value = d.code; 
-            document.getElementById('inp-active').value = d.isActive;
-            document.getElementById('inp-date').value = d.releaseDate || ""; // 帶入日期
-        }
-        
-        // 儲存邏輯修復：判斷 update 或 add
-        window.app.saveCourse = async function() {
+
+        window.app.saveForm = async function() {
+            const type = document.getElementById('inp-type').value;
             const id = document.getElementById('inp-id').value;
-            const p = {
-                order: Number(document.getElementById('inp-order').value), 
-                title: document.getElementById('inp-title').value, 
-                youtubeId: document.getElementById('inp-vid').value, 
-                summary: document.getElementById('inp-summary').value, 
-                code: document.getElementById('inp-code').value, 
-                isActive: document.getElementById('inp-active').value === 'true',
-                releaseDate: document.getElementById('inp-date').value, // 儲存日期
-                updatedAt: new Date()
-            };
-            try { 
-                if(id) {
-                    // 編輯模式：更新
-                    await updateDoc(doc(db, "units", id), p); 
-                } else { 
-                    // 新增模式：建立
-                    p.createdAt = new Date(); 
-                    await addDoc(collection(db, "units"), p); 
-                } 
-                window.app.closeCourseModal(); 
-            } catch(e){ alert(e.message); }
+            let payload = {};
+
+            if(type === 'course') {
+                payload = {
+                    order: Number(document.getElementById('f-order').value),
+                    title: document.getElementById('f-title').value,
+                    youtubeId: document.getElementById('f-vid').value,
+                    summary: document.getElementById('f-sum').value,
+                    code: document.getElementById('f-code').value,
+                    releaseDate: document.getElementById('f-date').value,
+                    isActive: document.getElementById('f-active').value === 'true',
+                    updatedAt: new Date()
+                };
+                if(!id) payload.createdAt = new Date();
+                try {
+                    if(id) await updateDoc(doc(db,"units",id), payload);
+                    else await addDoc(collection(db,"units"), payload);
+                    document.getElementById('modal-form').style.display='none';
+                } catch(e){ alert(e.message); }
+            } else if (type === 'question') {
+                payload = {
+                    unitTitle: document.getElementById('f-unit').value,
+                    probTitle: document.getElementById('f-qtitle').value,
+                    probDesc: document.getElementById('f-qdesc').value,
+                    probCode: document.getElementById('f-qcode').value,
+                    updatedAt: new Date()
+                };
+                try {
+                    await updateDoc(doc(db,"records",id), payload);
+                    document.getElementById('modal-form').style.display='none';
+                } catch(e){ alert(e.message); }
+            }
         }
-        
-        window.app.delCourse = async function(id) { if(confirm("確定刪除?")) await deleteDoc(doc(db,"units",id)); }
-        window.app.toggleStatus = async function(id,s) { await updateDoc(doc(db,"units",id),{isActive:!s}); }
+
+        window.app.openCourseModal = function() { app.openForm('course', ''); }
+        window.app.closeCourseModal = function() { document.getElementById('modal-course-form').style.display='none'; }
+        window.app.delDoc = async function(col, id) { if(confirm("確定刪除此項目?")) await deleteDoc(doc(db, col, id)); }
+        window.app.toggleStatus = async function(id, s) { await updateDoc(doc(db,"units",id),{isActive:!s}); }
+        window.app.closeDetailModal = function() { document.getElementById('modal-student-detail').style.display='none'; }
+        window.app.switchView = function(n) { document.querySelectorAll('.view-section').forEach(e=>e.classList.remove('active')); document.getElementById('view-'+n).classList.add('active'); document.querySelectorAll('.menu-item').forEach(e=>e.classList.remove('active')); event.currentTarget.classList.add('active'); }
+        function escapeHtml(text) { return text ? text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""; }
     </script>
 </body>
 </html>

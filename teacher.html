@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>Code Nexus - 教師後台</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f0f2f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #333; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        textarea { height: 100px; font-family: monospace; }
+        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>👩‍🏫 建立新教材單元</h2>
+    
+    <div class="form-group">
+        <label>單元順序 (例如 1, 2, 3)</label>
+        <input type="number" id="unitOrder" value="1">
+    </div>
+
+    <div class="form-group">
+        <label>單元標題</label>
+        <input type="text" id="unitTitle" placeholder="例如：Python 迴圈基礎">
+    </div>
+
+    <div class="form-group">
+        <label>YouTube ID</label>
+        <input type="text" id="youtubeId" placeholder="例如：PqFKRqpHrjw">
+    </div>
+
+    <div class="form-group">
+        <label>重點摘要 (Summary)</label>
+        <textarea id="summary" placeholder="影片重點..."></textarea>
+    </div>
+
+    <div class="form-group">
+        <label>範例程式碼 (Code Example)</label>
+        <textarea id="codeExample" placeholder="print('Hello')..."></textarea>
+    </div>
+
+    <div class="form-group">
+        <label>狀態</label>
+        <select id="isActive">
+            <option value="true">🟢 立即發布 (學生可見)</option>
+            <option value="false">🔴 存為草稿</option>
+        </select>
+    </div>
+
+    <button onclick="saveUnit()">儲存單元</button>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // ============================================
+    // ★★★ 請在下方貼上您的 Firebase Config ★★★
+    // ============================================
+    const firebaseConfig = {
+          apiKey: "AIzaSyBgx03WUCJhe3ymWhecEYfiyShmcy9bCkg",
+          authDomain: "code-a1ef3.firebaseapp.com",
+          projectId: "code-a1ef3",
+          storageBucket: "code-a1ef3.firebasestorage.app",
+          messagingSenderId: "733626558270",
+          appId: "1:733626558270:web:6d0ffcae5a5b329b212e6f",
+          measurementId: "G-547WFQWRHZ"
+    };
+
+    // 初始化 Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // 定義儲存函式 (綁定到 window 讓按鈕可以呼叫)
+    window.saveUnit = async function() {
+        const btn = document.querySelector('button');
+        btn.innerText = "儲存中...";
+        
+        try {
+            const docRef = await addDoc(collection(db, "units"), {
+                order: Number(document.getElementById('unitOrder').value),
+                title: document.getElementById('unitTitle').value,
+                youtubeId: document.getElementById('youtubeId').value,
+                summary: document.getElementById('summary').value,
+                code: document.getElementById('codeExample').value,
+                isActive: document.getElementById('isActive').value === 'true',
+                createdAt: new Date()
+            });
+            alert("✅ 成功！單元 ID: " + docRef.id);
+            btn.innerText = "儲存單元";
+        } catch (e) {
+            console.error("Error adding document: ", e);
+            alert("❌ 儲存失敗，請看 Console");
+        }
+    }
+</script>
+
+</body>
+</html>

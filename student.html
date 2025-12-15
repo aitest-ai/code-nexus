@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus - Student V10.0 (Ultimate Stable)</title>
+    <title>Code Nexus - Student V10.2 (Input Flow Fix)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -269,8 +269,8 @@
             width: 100%;
         }
         
-        /* 自動重試指示 */
-        #retry-status { font-size: 0.8em; color: #ffcc00; display:none; margin-left:10px; }
+        /* 自動重試指示燈 */
+        #retry-status { font-size: 0.8em; color: #ffcc00; display:none; margin-left:10px; animation: blink 1s infinite; }
     </style>
 </head>
 <body>
@@ -284,12 +284,8 @@
         </div>
     </div>
 
-    <div id="face-lock-overlay" class="overlay">
-        <div class="lock-icon">⚠️</div>
-        <h2 style="color:var(--warning);">系統暫停</h2>
-        <p style="color:#ccc;">偵測不到臉部，請回到座位。</p>
-    </div>
-
+    <div id="face-lock-overlay" class="overlay"><div class="lock-icon">⚠️</div><h2 style="color:var(--warning);">系統暫停</h2><p style="color:#ccc;">偵測不到臉部，請回到座位。</p></div>
+    
     <div id="therapy-overlay" class="overlay">
         <div class="therapy-box">
             <h2 style="color:var(--danger); margin-top:0;">⚠️ 壓力過載</h2>
@@ -559,7 +555,6 @@ else:
         const PROMPT_THERAPY_STYLE = `使用者壓力過高。請講一個「30字以內」的極短工程師笑話或鼓勵的話。一定要短。`;
 
         // === API 呼叫防呆機制 (Timeout Wrapper + Auto Retry) ===
-        // V9.0 Upgrade: Auto-Retry Logic
         async function safeCallAI(prompt, system, buttonId, retryCount = 0) {
             const MAX_RETRIES = 3; // 最多重試 3 次
             const btn = document.getElementById(buttonId);
@@ -603,8 +598,7 @@ else:
             }
         }
 
-        // === ★★★ Python 統一執行核心 (V10.0 Native Input Fix) ★★★ ===
-        // 修正：使用 Python 內建的 js 模組直接呼叫 prompt，完全繞過 stdin
+        // === ★★★ Python 統一執行核心 (V10.2 Final Fix: sleep 0.5s) ★★★ ===
         async function executePythonCode(editorId, outputId) {
             const code = document.getElementById(editorId).value;
             const outputBox = document.getElementById(outputId);
@@ -613,44 +607,42 @@ else:
             if (!pyodide) { outputBox.innerText += "Python loading...\n"; return; }
 
             try {
-                // 1. 設定標準輸出 (Print)
                 pyodide.setStdout({
                     batched: (msg) => { outputBox.innerText += msg + "\n"; }
                 });
 
-                // 2. ★★★ 關鍵：改寫 Python 的 input() 函式 (Python Side Override) ★★★
-                // 我們注入一段 Python 程式碼，讓它改用 js.prompt 來獲取輸入
-                // 這樣可以確保同步等待，不會卡死，且能正確 Echo
+                // ★★★ 關鍵：覆寫 input，並加入 sleep 0.5s 讓 UI 喘息 ★★★
                 const inputOverrideCode = `
 import js
 import builtins
+import time
 
 def custom_input(prompt_text=""):
     if prompt_text:
         print(prompt_text, end="")
     
-    # 呼叫 JS 的 window.prompt
-    # 這裡的行為跟瀏覽器原生 prompt 一樣，按 Enter 回傳字串，按取消回傳 None
+    # 呼叫瀏覽器原生 prompt
     val = js.prompt(prompt_text if prompt_text else "Python 請求輸入 (Input):")
     
-    # 處理取消
+    # 如果使用者取消 (null)，拋出中斷
     if val is None:
         raise KeyboardInterrupt("使用者取消輸入")
     
-    # 顯示輸入內容 (Echo)
+    # 回顯輸入內容
     print(val)
+    
+    # ★★★ 關鍵修正：暫停 0.5 秒，讓瀏覽器有時間關閉視窗，避免視覺上卡死 ★★★
+    time.sleep(0.5)
+    
     return str(val)
 
 builtins.input = custom_input
 `;
                 await pyodide.runPythonAsync(inputOverrideCode);
-
-                // 3. 執行使用者代碼
                 await pyodide.runPythonAsync(code);
                 outputBox.innerText += "\n[執行結束]";
 
             } catch(err) {
-                // 捕捉取消輸入的例外
                 if(err.message.includes("使用者取消輸入") || err.message.includes("KeyboardInterrupt")) {
                     outputBox.innerText += "\n[已取消輸入 (User Cancelled)]";
                 } else {
@@ -703,7 +695,6 @@ builtins.input = custom_input
         async function generatePracticeProblems() {
             const prompt = `[任務] 根據教材設計 3 道 Python 練習題（低中高）。\n教材:${window.LESSON_CONFIG.summary}\n範例:${window.LESSON_CONFIG.code}\n回傳JSON:{"low":{"title":"","desc":"","hint":""},"mid":{...},"high":{...}}`;
             try {
-                // 使用自動重試機制
                 const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-gen-ex");
                 console.log("Raw AI Response:", r); // Debug log
                 generatedProblems = JSON.parse(extractJSON(r));
@@ -713,9 +704,7 @@ builtins.input = custom_input
                 typeWriterMsg('ai', '題目已生成，請開始挑戰！');
             } catch(e) { console.error(e); }
         }
-        
         function selectDifficulty(level) {
-            // ★★★ 防呆檢查 ★★★
             if(!generatedProblems || !generatedProblems[level]) {
                 console.error("生成題目資料不全:", generatedProblems);
                 alert("題目生成似乎不完整，請重新點選「讓 AI 生成題目」");
@@ -736,13 +725,10 @@ builtins.input = custom_input
             document.getElementById('ex-feedback').style.display = "none";
         }
         
-        async function runExPython() { 
-            // 使用新版執行核心
-            await executePythonCode('ex-code-editor', 'ex-output'); 
-        }
+        async function runExPython() { await executePythonCode('ex-code-editor', 'ex-output'); }
         
         async function checkExAnswer() {
-            const c = document.getElementById('ex-code-editor').value; const p = generatedProblems[currentDifficulty]; 
+            const c = document.getElementById('ex-code-editor').value; const p = generatedProblems[currentDifficulty]; const btn = document.getElementById('btn-check-ex');
             const prompt = `[題目] ${p.title}\n[描述] ${p.desc}\n[代碼] ${c}\n判斷對錯回傳JSON:{"correct":true/false,"feedback":"..."}`;
             try {
                 const r = await safeCallAI(prompt, "You are a Tutor.", "btn-check-ex");
@@ -777,10 +763,7 @@ builtins.input = custom_input
             } catch(e) { alert("連線失敗"); } 
             btn.innerText = "📥 載入同儕挑戰"; btn.disabled = false;
         }
-        async function runPeerAttempt() { 
-            // 使用新版執行核心
-            await executePythonCode('hr-attempt-editor', 'hr-attempt-output'); 
-        }
+        async function runPeerAttempt() { await executePythonCode('hr-attempt-editor', 'hr-attempt-output'); }
         function revealPeerGrading() { if(document.getElementById('hr-attempt-editor').value.trim().length < 5) return alert("請先試寫代碼！"); document.getElementById('hr-stage-1-solve').style.display = 'none'; document.getElementById('hr-stage-2-grade').style.display = 'block'; document.getElementById('hr-code').innerText = currentPeerRefCode; }
         async function submitHumanReview() {
             const s = [1,2,3,4,5].map(i=>document.getElementById(`hr-s${i}`).value); const c = document.getElementById('hr-comment').value; if(!c) return alert("請寫評語");
@@ -844,10 +827,7 @@ builtins.input = custom_input
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
             try { await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)]); isFaceLoaded = true; } catch(e){}
             try { const s = await navigator.mediaDevices.getUserMedia({ video: {} }); document.getElementById('video').srcObject = s; document.getElementById('video').addEventListener('play', ()=>setInterval(monitorLoop, 1000)); } catch(e){}
-            try { 
-                pyodide = await loadPyodide(); 
-                // 這裡不用 setStdin 了，因為我們在 executePythonCode 裡面用 Python 的 builtins.input 覆寫了
-            } catch(e){}
+            try { pyodide = await loadPyodide(); } catch(e){}
             document.addEventListener('mousemove', (e) => { if(lastMouseX!==0) mouseDist+=Math.sqrt(Math.pow(e.clientX-lastMouseX,2)+Math.pow(e.clientY-lastMouseY,2)); lastMouseX=e.clientX; lastMouseY=e.clientY; });
             document.addEventListener('keydown', (e)=> { if(e.key==='Backspace') backspaceCount++; });
             setInterval(() => tabSwitchCount=0, 5000); typeWriterMsg('ai', `你好！請開始學習。`); learningStartTime = Date.now(); 
@@ -885,11 +865,7 @@ builtins.input = custom_input
             }
         }
 
-        async function runPython() { 
-            // 使用新版執行核心
-            await executePythonCode('code-editor', 'output');
-        }
-        
+        async function runPython() { await executePythonCode('code-editor', 'output'); }
         async function sendChat() { 
             const v=document.getElementById('chat-input').value; if(!v)return; 
             document.getElementById('chat-msgs').innerHTML+=`<div class="msg user">${v}</div>`; 
@@ -914,17 +890,7 @@ builtins.input = custom_input
         function switchPhase(p) { tabSwitchCount++; currentPhase=p; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); document.querySelectorAll('.content-area').forEach(c=>c.classList.remove('active')); const idx=['learning','exercise','posing','ai-review','human-review','reflection'].indexOf(p); document.querySelectorAll('.tab-btn')[idx].classList.add('active'); document.querySelectorAll('.content-area')[idx].classList.add('active'); log('NAV',p); }
         function typeWriterMsg(r,t) { const box = document.getElementById('chat-msgs'); const div = document.createElement('div'); div.className = `msg ${r} typing-cursor`; box.appendChild(div); let i = 0; const tm = setInterval(()=>{ text = t || ""; div.innerHTML = marked.parse(text.substring(0, i++)); box.scrollTop = 99999; if(i>text.length){ clearInterval(tm); div.classList.remove('typing-cursor'); } }, 20); }
         function typeWriterText(e,t) { let i = 0; const tm = setInterval(()=>{ e.innerHTML = marked.parse(t.substring(0, i++)); if(i>t.length) clearInterval(tm); }, 15); }
-        
-        // ★★★ 增強版 JSON 解析器 ★★★
-        function extractJSON(s) { 
-            const a = s.indexOf('{'); 
-            const b = s.lastIndexOf('}'); 
-            if (a !== -1 && b !== -1) {
-                return s.substring(a, b + 1);
-            }
-            return "{}"; 
-        }
-        
+        function extractJSON(s) { const a=s.indexOf('{'),b=s.lastIndexOf('}'); return (a!=-1&&b!=-1)?s.substring(a,b+1):"{}"; }
         async function sendToGAS(d) { 
             if(window.uploadToFirebase) window.uploadToFirebase(d); 
             if(GAS_URL.startsWith("http")) await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); 

@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus - Ultimate Full Version (Uncompressed)</title>
+    <title>Code Nexus - Ultimate Student Client</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -388,7 +388,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, query, where, orderBy, limit, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // ============================================
         // ★★★ 請在下方貼上您的 Firebase Config ★★★
@@ -408,7 +408,7 @@
             const app = initializeApp(firebaseConfig);
             const db = getFirestore(app);
 
-            // 讀取教材函式
+            // 1. 讀取教材函式
             window.loadLessonFromCloud = async function() {
                 console.log("正在從雲端讀取教材...");
                 const q = query(collection(db, "units"), where("isActive", "==", true), orderBy("order", "asc"), limit(1));
@@ -439,11 +439,27 @@
                     window.loadYoutubeAPI();
                 }
             };
+
+            // 2. 上傳學習紀錄函式 (讓教師後台看得到數據)
+            window.uploadToFirebase = async function(dataPayload) {
+                try {
+                    // 加上伺服器時間戳記 (模擬)
+                    dataPayload.createdAt = new Date();
+                    // 寫入 'records' 集合
+                    await addDoc(collection(db, "records"), dataPayload);
+                    console.log("Firebase 上傳成功:", dataPayload.type);
+                } catch (e) {
+                    console.error("Firebase 上傳失敗:", e);
+                }
+            };
+
             // 執行讀取
             window.loadLessonFromCloud();
         } else {
             console.log("Firebase Config 未設定，使用預設教材");
             window.loadYoutubeAPI();
+            // 定義空函式，避免報錯
+            window.uploadToFirebase = async function() {};
         }
     </script>
 
@@ -673,7 +689,12 @@ else:
         function typeWriterMsg(r,t) { const box = document.getElementById('chat-msgs'); const div = document.createElement('div'); div.className = `msg ${r} typing-cursor`; box.appendChild(div); let i = 0; const tm = setInterval(()=>{ text = t || ""; div.innerHTML = marked.parse(text.substring(0, i++)); box.scrollTop = 99999; if(i>text.length){ clearInterval(tm); div.classList.remove('typing-cursor'); } }, 20); }
         function typeWriterText(e,t) { let i = 0; const tm = setInterval(()=>{ e.innerHTML = marked.parse(t.substring(0, i++)); if(i>t.length) clearInterval(tm); }, 15); }
         function extractJSON(s) { const a=s.indexOf('{'),b=s.lastIndexOf('}'); return (a!=-1&&b!=-1)?s.substring(a,b+1):"{}"; }
-        async function sendToGAS(d) { if(GAS_URL.startsWith("http")) await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); }
+        async function sendToGAS(d) { 
+            // 1. 同步上傳到 Firebase (讓教師後台看得到)
+            if(window.uploadToFirebase) window.uploadToFirebase(d);
+            // 2. 原本的 GAS
+            if(GAS_URL.startsWith("http")) await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); 
+        }
         function log(t,d) { if(t!=='ACT'&&t!=='CHAT') sendToGAS({type:'LOG',studentId,action:t,detail:d}); }
         function stopTherapy() { document.getElementById('therapy-overlay').style.display='none'; stressScore=40; isPaused=false; }
     </script>

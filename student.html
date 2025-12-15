@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus - Ultimate Student Client</title>
+    <title>Code Nexus - Student Client (With Emotion Tracking)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -343,7 +343,14 @@
             <h3>🤖 AI 評分你的題目</h3>
             <button class="btn-action" onclick="triggerAIReview()">啟動 AI 評分</button>
             <div id="ai-result" style="display:none; margin-top:15px;">
-                <table class="score-table"><tr><th>向度</th><th>得分</th><th>AI 評語</th></tr><tr><td>題目正確</td><td id="ai-s1">-</td><td rowspan="5" id="ai-comment-cell" class="comment-cell"></td></tr><tr><td>複雜度</td><td id="ai-s2">-</td></tr><tr><td>實用性</td><td id="ai-s3">-</td></tr><tr><td>代碼正確</td><td id="ai-s4">-</td></tr><tr><td>可讀性</td><td id="ai-s5">-</td></tr></table>
+                <table class="score-table">
+                    <tr><th>向度</th><th>得分 (1-5)</th><th>AI 評語</th></tr>
+                    <tr><td>題目正確性</td><td id="ai-s1">-</td><td rowspan="5" id="ai-comment-cell" class="comment-cell"></td></tr>
+                    <tr><td>邏輯複雜度</td><td id="ai-s2">-</td></tr>
+                    <tr><td>實用性</td><td id="ai-s3">-</td></tr>
+                    <tr><td>代碼正確性</td><td id="ai-s4">-</td></tr>
+                    <tr><td>代碼可讀性</td><td id="ai-s5">-</td></tr>
+                </table>
                 <br><button class="btn-action" onclick="switchPhase('human-review')">前往同儕互評 ➡</button>
             </div>
         </div>
@@ -496,8 +503,18 @@ else:
         let readSeconds = 0;
         let generatedProblems = null; 
         let currentDifficulty = ''; 
+        let lastUploadTime = 0; // 控制上傳頻率
 
-        const PROMPT_STRICT_GRADING = `你現在是一位電腦科學專家。請對學生的題目與代碼進行評分(1-5分)。回傳 JSON。`;
+        // Prompt Tuning: Ensure ARRAY format
+        const PROMPT_STRICT_GRADING = `
+        你現在是一位電腦科學專家。請對學生的題目與代碼進行評分。
+        請回傳嚴格的 JSON 格式：
+        {
+            "scores": [分數1, 分數2, 分數3, 分數4, 分數5],
+            "comment": "你的具體評語..."
+        }
+        分數向度(1-5分)：1.題目正確性 2.邏輯複雜度 3.實用性 4.代碼正確性 5.代碼可讀性。
+        `;
         const PROMPT_THERAPY_STYLE = `使用者壓力指數過高。請講笑話或鼓勵。繁體中文。`;
 
         // ===============================================
@@ -615,7 +632,7 @@ else:
         }
 
         // ===============================================
-        // Phase Transitions
+        // Phase Transitions & AI Scoring Fix
         // ===============================================
         async function finishLearning() {
             if((Date.now()-learningStartTime)/1000 < 5) { stressScore+=20; return typeWriterMsg('ai', '讀太快了！請專心看完影片。'); }
@@ -630,17 +647,31 @@ else:
             await sendToGAS({ type: 'PHASE_3_POSING', studentId, probTitle: t, probDesc: sessionData.probDesc, probCode: c });
             switchPhase('ai-review'); 
         }
+        
         async function triggerAIReview() {
             document.getElementById('ai-result').style.display='block'; document.getElementById('ai-comment-cell').innerText = "AI 評分中...";
-            const prompt = `${PROMPT_STRICT_GRADING} 題目：${sessionData.probTitle} 敘述：${sessionData.probDesc} 代碼：${sessionData.probCode} 回傳JSON:{scores:[...],comment:"..."}`;
+            // Prompt 嚴格要求 Array 格式
+            const prompt = `${PROMPT_STRICT_GRADING} 題目：${sessionData.probTitle} 敘述：${sessionData.probDesc} 代碼：${sessionData.probCode}`;
             try { 
                 const r = await callGemini(prompt, "You are a JSON generator."); const json = JSON.parse(extractJSON(r)); 
                 sessionData.aiScores = json.scores; sessionData.aiComment = json.comment;
+                
+                // 修正：確保 scores 是陣列
+                if (Array.isArray(json.scores) && json.scores.length >= 5) {
+                    for(let i=0; i<5; i++) {
+                        document.getElementById(`ai-s${i+1}`).innerText = json.scores[i];
+                    }
+                } else {
+                    document.getElementById('ai-comment-cell').innerText += " (分數格式解析錯誤)";
+                }
+
                 await sendToGAS({ type: 'PHASE_4_AI', studentId, probTitle: sessionData.probTitle, aiScores: json.scores, aiComment: json.comment });
-                for(let i=0; i<5; i++) document.getElementById(`ai-s${i+1}`).innerText = json.scores[i]; 
-                document.getElementById('ai-comment-cell').innerText = ""; typeWriterText(document.getElementById('ai-comment-cell'), json.comment); 
-            } catch(e) { document.getElementById('ai-comment-cell').innerText = "AI Error"; }
+                
+                document.getElementById('ai-comment-cell').innerText = ""; 
+                typeWriterText(document.getElementById('ai-comment-cell'), json.comment); 
+            } catch(e) { document.getElementById('ai-comment-cell').innerText = "AI Error: " + e.message; }
         }
+
         async function submitAll() {
             const r = document.getElementById('rf-content').value; if(!r) return alert("請寫反思");
             await sendToGAS({ type:'PHASE_6_REFLECTION', studentId, reflection: r });
@@ -653,7 +684,6 @@ else:
         async function sendMaterialQuestion() { const q = document.getElementById('material-question').value; if(!q) return; log('ACT', `ASK: ${q}`); const r = await callGeminiWithHistory(`[教材]${window.LESSON_CONFIG.summary}\n[問]${q}`, "Tutor"); typeWriterMsg('ai', r); document.getElementById('material-question').value=""; }
         function loginSystem() { if(!document.getElementById('student-id-input').value) return alert("輸入學號"); studentId = document.getElementById('student-id-input').value; document.getElementById('display-student-id').innerText = "ID: "+studentId; document.getElementById('login-overlay').style.display='none'; init(); }
         async function init() {
-            log('SYS', 'Init');
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
             try { await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)]); isFaceLoaded = true; } catch(e){}
             try { const s = await navigator.mediaDevices.getUserMedia({ video: {} }); document.getElementById('video').srcObject = s; document.getElementById('video').addEventListener('play', ()=>setInterval(monitorLoop, 1000)); } catch(e){}
@@ -661,15 +691,16 @@ else:
             document.addEventListener('mousemove', (e) => { if(lastMouseX!==0) mouseDist+=Math.sqrt(Math.pow(e.clientX-lastMouseX,2)+Math.pow(e.clientY-lastMouseY,2)); lastMouseX=e.clientX; lastMouseY=e.clientY; });
             document.addEventListener('keydown', (e)=> { if(e.key==='Backspace') backspaceCount++; });
             setInterval(() => tabSwitchCount=0, 5000); typeWriterMsg('ai', `你好！請開始學習。`); learningStartTime = Date.now(); 
-            // YouTube API is triggered by Firebase script or default fallback
         }
+        
+        // ★★★ 關鍵修改：情緒與壓力上傳迴圈 ★★★
         async function monitorLoop() {
             if(isPaused) return; let emoDelta=0, actDelta=0, status="正常", statusClass="val";
             if(isFaceLoaded) {
                 const det = await faceapi.detectAllFaces(document.getElementById('video'), new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
                 if(det.length>0) { 
                     faceMissingDuration=0; document.getElementById('face-lock-overlay').style.display='none';
-                    const top = Object.entries(det[0].expressions).sort((a,b)=>b[1]-a[1])[0][0]; document.getElementById('emo-val').innerText = top;
+                    const top = Object.entries(det[0].expressions).sort((a,b)=>b[1]-a[1])[0][0]; document.getElementById('emo-val').innerText = top; lastEmotion = top;
                     if(['sad','angry','fearful'].includes(top)) emoDelta+=5; 
                 } else { faceMissingDuration++; if(faceMissingDuration>3) document.getElementById('face-lock-overlay').style.display='flex'; }
             }
@@ -679,9 +710,31 @@ else:
             const bar = document.getElementById('stress-bar'); bar.style.width = stressScore+"%"; bar.style.background = stressScore>85?"red":stressScore>50?"orange":"#00ff9d";
             if(stressScore>85) triggerTherapy();
             mouseDist=0; backspaceCount=0;
+
+            // ★ 每 10 秒上傳一次監測數據 ★
+            const now = Date.now();
+            if (now - lastUploadTime > 10000 && window.uploadToFirebase) {
+                window.uploadToFirebase({
+                    type: 'MONITOR_LOG',
+                    studentId: studentId,
+                    stress: stressScore,
+                    emotion: lastEmotion || "neutral",
+                    phase: currentPhase
+                });
+                lastUploadTime = now;
+            }
         }
+
         async function runPython() { const c = document.getElementById('code-editor').value; const o = document.getElementById('output'); o.innerText = "Running..."; if(!pyodide) return; try { pyodide.setStdout({batched:(m)=>o.innerText+=m+"\n"}); await pyodide.runPythonAsync(c); } catch(e){ o.innerText+=e; } }
-        async function sendChat() { const v=document.getElementById('chat-input').value; if(!v)return; document.getElementById('chat-msgs').innerHTML+=`<div class="msg user">${v}</div>`; document.getElementById('chat-input').value=""; const r = await callGeminiWithHistory(v, `System: Phase=${currentPhase} Stress=${stressScore}`); typeWriterMsg('ai', r); chatHistory.push({role:"user",parts:[{text:v}]},{role:"model",parts:[{text:r}]}); sendToGAS({type:'CHAT_LOG',studentId,userMsg:v,aiMsg:r}); }
+        async function sendChat() { 
+            const v=document.getElementById('chat-input').value; if(!v)return; 
+            document.getElementById('chat-msgs').innerHTML+=`<div class="msg user">${v}</div>`; 
+            document.getElementById('chat-input').value=""; 
+            const r = await callGeminiWithHistory(v, `System: Phase=${currentPhase} Stress=${stressScore}`); 
+            typeWriterMsg('ai', r); 
+            chatHistory.push({role:"user",parts:[{text:v}]},{role:"model",parts:[{text:r}]}); 
+            sendToGAS({type:'CHAT_LOG',studentId,userMsg:v,aiMsg:r}); 
+        }
         async function callGeminiWithHistory(u,s) { if(!GAS_URL.startsWith("http"))return"API Error"; try{const r=await fetch(GAS_URL,{method:'POST',mode:'cors',body:JSON.stringify({type:'CALL_GEMINI_CHAT',messages:[...chatHistory,{role:"user",parts:[{text:s+"\n"+u}]}]})});return(await r.json()).text;}catch(e){return"Error";} }
         async function callGemini(u,s) { if(!GAS_URL.startsWith("http"))return"API Error"; try{const r=await fetch(GAS_URL,{method:'POST',mode:'cors',body:JSON.stringify({type:'CALL_GEMINI',prompt:s+"\n"+u})});return(await r.json()).text;}catch(e){return"Error";} }
         async function triggerTherapy() { if(isPaused)return; isPaused=true; document.getElementById('therapy-overlay').style.display='flex'; if(ytPlayer)ytPlayer.pauseVideo(); const r=await callGemini("Alert",PROMPT_THERAPY_STYLE); document.getElementById('therapy-text').innerText=r; setTimeout(()=>document.getElementById('btn-resume').style.opacity='1',2000); }
@@ -690,9 +743,7 @@ else:
         function typeWriterText(e,t) { let i = 0; const tm = setInterval(()=>{ e.innerHTML = marked.parse(t.substring(0, i++)); if(i>t.length) clearInterval(tm); }, 15); }
         function extractJSON(s) { const a=s.indexOf('{'),b=s.lastIndexOf('}'); return (a!=-1&&b!=-1)?s.substring(a,b+1):"{}"; }
         async function sendToGAS(d) { 
-            // 1. 同步上傳到 Firebase (讓教師後台看得到)
-            if(window.uploadToFirebase) window.uploadToFirebase(d);
-            // 2. 原本的 GAS
+            if(window.uploadToFirebase) window.uploadToFirebase(d); 
             if(GAS_URL.startsWith("http")) await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); 
         }
         function log(t,d) { if(t!=='ACT'&&t!=='CHAT') sendToGAS({type:'LOG',studentId,action:t,detail:d}); }

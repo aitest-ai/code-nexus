@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus - Student V9.0 (Auto-Retry)</title>
+    <title>Code Nexus - Student V9.1 (Input Buffer Fix)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -467,17 +467,10 @@
                     const querySnapshot = await getDocs(q);
                     if (!querySnapshot.empty) {
                         const data = querySnapshot.docs[0].data();
-                        console.log("抓到教材：", data.title);
-
-                        // 更新全域變數
                         window.LESSON_CONFIG = { youtubeId: data.youtubeId, title: data.title, summary: data.summary, code: data.code };
-
-                        // 更新畫面
                         document.getElementById('lesson-title').innerText = data.title;
                         document.getElementById('material-summary').innerText = data.summary;
                         document.getElementById('material-code').innerText = data.code;
-                        
-                        // 啟動 YouTube API (確保資料拿到才載入播放器)
                         window.loadYoutubeAPI(); 
                     } else {
                         console.log("無啟用課程，載入預設");
@@ -547,6 +540,9 @@ else:
         let generatedProblems = null; 
         let currentDifficulty = ''; 
         let lastUploadTime = 0; // 控制上傳頻率
+        
+        // ★★★ 輸入緩衝區 (Buffer for Input Fix) ★★★
+        let pyInputBuffer = "";
 
         // Prompt Tuning: Ensure ARRAY format
         const PROMPT_STRICT_GRADING = `
@@ -599,18 +595,6 @@ else:
                     throw e; // 讓外層 catch 處理
                 }
             }
-        }
-
-        // === ★★★ Python Input Fix (Stdin Handler) ★★★ ===
-        // 修正：當 Pyodide 執行 input() 時，強制跳出 prompt，並正確處理 null 與 \n
-        function handlePythonInput(msg) {
-            let result = window.prompt(msg || "Python 程式正在請求輸入 (Input):");
-            if (result === null) {
-                // 使用者按取消 -> 給空字串並換行，防止 Python 卡死
-                return "\n"; 
-            }
-            // 必須加上換行，Python input() 才會結束等待
-            return result + "\n"; 
         }
 
         function onYouTubeIframeAPIReady() {
@@ -690,7 +674,7 @@ else:
             document.getElementById('ex-feedback').style.display = "none";
         }
         
-        async function runExPython() { const c = document.getElementById('ex-code-editor').value; const o = document.getElementById('ex-output'); o.innerText = "Running...\n"; if (!pyodide) { o.innerText += "Python loading...\n"; return; } try { pyodide.setStdout({batched:(m)=>o.innerText+=m+"\n"}); await pyodide.runPythonAsync(c); } catch(err) { o.innerText += "Error:\n" + err; } }
+        async function runExPython() { const c = document.getElementById('ex-code-editor').value; const o = document.getElementById('ex-output'); o.innerText = "Running...\n"; if (!pyodide) return; try { pyodide.setStdout({batched:(m)=>o.innerText+=m+"\n"}); await pyodide.runPythonAsync(c); } catch(err) { o.innerText += "Error:\n" + err; } }
         async function checkExAnswer() {
             const c = document.getElementById('ex-code-editor').value; const p = generatedProblems[currentDifficulty]; const btn = document.getElementById('btn-check-ex'); 
             const prompt = `[題目] ${p.title}\n[描述] ${p.desc}\n[代碼] ${c}\n判斷對錯回傳JSON:{"correct":true/false,"feedback":"..."}`;
@@ -756,7 +740,7 @@ else:
             document.getElementById('ai-result').style.display='block'; document.getElementById('ai-comment-cell').innerText = "AI 評分中...";
             const prompt = `${PROMPT_STRICT_GRADING} 題目：${sessionData.probTitle} 敘述：${sessionData.probDesc} 代碼：${sessionData.probCode}`;
             try { 
-                const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-ai-review"); 
+                const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-ai-review"); // Use safeCall
                 const json = JSON.parse(extractJSON(r)); 
                 sessionData.aiScores = json.scores; sessionData.aiComment = json.comment;
                 
@@ -787,14 +771,31 @@ else:
         // ===============================================
         async function sendMaterialQuestion() { const q = document.getElementById('material-question').value; if(!q) return; log('ACT', `ASK: ${q}`); const r = await callGeminiWithHistory(`[教材]${window.LESSON_CONFIG.summary}\n[問]${q}`, "Tutor"); typeWriterMsg('ai', r); document.getElementById('material-question').value=""; }
         function loginSystem() { if(!document.getElementById('student-id-input').value) return alert("輸入學號"); studentId = document.getElementById('student-id-input').value; document.getElementById('display-student-id').innerText = "ID: "+studentId; document.getElementById('login-overlay').style.display='none'; init(); }
+        
         async function init() {
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
             try { await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)]); isFaceLoaded = true; } catch(e){}
             try { const s = await navigator.mediaDevices.getUserMedia({ video: {} }); document.getElementById('video').srcObject = s; document.getElementById('video').addEventListener('play', ()=>setInterval(monitorLoop, 1000)); } catch(e){}
             try { 
                 pyodide = await loadPyodide(); 
-                // ★★★ Python 輸入框修復 ★★★
-                pyodide.setStdin({ stdin: () => handlePythonInput() });
+                // ★★★ 終極 Python 輸入修復：使用 Buffer ★★★
+                pyodide.setStdin({
+                    stdin: () => {
+                        // 如果緩衝區沒東西，就跳出 prompt
+                        if (!pyInputBuffer) {
+                            let result = window.prompt("Python 程式正在請求輸入 (Input):");
+                            if (result === null) {
+                                pyInputBuffer = "\n"; // 取消則視為空行
+                            } else {
+                                pyInputBuffer = result + "\n"; // 強制加上換行
+                            }
+                        }
+                        // 每次只回傳一個字元，避免 Pyodide 再次呼叫時又跳 prompt
+                        let char = pyInputBuffer.charAt(0);
+                        pyInputBuffer = pyInputBuffer.slice(1);
+                        return char;
+                    }
+                });
             } catch(e){}
             document.addEventListener('mousemove', (e) => { if(lastMouseX!==0) mouseDist+=Math.sqrt(Math.pow(e.clientX-lastMouseX,2)+Math.pow(e.clientY-lastMouseY,2)); lastMouseX=e.clientX; lastMouseY=e.clientY; });
             document.addEventListener('keydown', (e)=> { if(e.key==='Backspace') backspaceCount++; });

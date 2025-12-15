@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus - Student V9.2 (Emergency Stop)</title>
+    <title>Code Nexus - Student V9.3 (Final Stability)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -377,7 +377,7 @@
                     </div>
                     <p id="ex-hint-text" style="color: #888; font-size: 0.9em; margin-top: 5px; background: #222; padding: 5px; border-radius: 4px;"></p>
                     <div style="display:flex; justify-content:space-between;">
-                        <button class="btn-action" style="background:#444;" onclick="runExPython()">▶ 測試執行</button>
+                        <button class="btn-action" style="background:#444;" onclick="executePythonCode('ex-code-editor', 'ex-output')">▶ 測試執行</button>
                         <button class="btn-action" onclick="checkExAnswer()" id="btn-check-ex">📝 提交給 AI 檢查</button>
                     </div>
                 </div>
@@ -394,7 +394,7 @@
             <label>參考解答代碼</label>
             <div class="editor-container"><textarea id="code-editor" class="code-area" placeholder="print('Hello World')"></textarea><div id="output" class="output-area">等待執行...</div></div>
             <div style="display:flex; justify-content:space-between; margin-top:10px;">
-                 <button class="btn-action" style="background:#444;" onclick="runPython()">▶ 執行代碼</button>
+                 <button class="btn-action" style="background:#444;" onclick="executePythonCode('code-editor', 'output')">▶ 執行代碼</button>
                  <button class="btn-action" onclick="finishPosing()">暫存並提交給 AI ➡</button>
             </div>
         </div>
@@ -427,7 +427,7 @@
                 <div id="hr-stage-1-solve">
                     <label style="color:#fff;">請先試著解題 (Testing Zone)：</label>
                     <div class="editor-container"><textarea id="hr-attempt-editor" class="code-area" placeholder="# 試寫..."></textarea><div id="hr-attempt-output" class="output-area">等待測試...</div></div>
-                    <div style="display:flex; justify-content:space-between;"><button class="btn-action" style="background:#444;" onclick="runPeerAttempt()">▶ 測試我的代碼</button><button class="btn-action" onclick="revealPeerGrading()">👀 我試過了，顯示解答與評分</button></div>
+                    <div style="display:flex; justify-content:space-between;"><button class="btn-action" style="background:#444;" onclick="executePythonCode('hr-attempt-editor', 'hr-attempt-output')">▶ 測試我的代碼</button><button class="btn-action" onclick="revealPeerGrading()">👀 我試過了，顯示解答與評分</button></div>
                 </div>
                 <div id="hr-stage-2-grade" style="display:none; margin-top:20px; border-top:1px solid #333; padding-top:20px;">
                     <label style="color:var(--warning);">同學的參考解答：</label><pre id="hr-code" style="background:#222; padding:10px; overflow-x:auto; margin-bottom:20px;"></pre>
@@ -558,10 +558,10 @@ else:
         let currentDifficulty = ''; 
         let lastUploadTime = 0; // 控制上傳頻率
         
-        // ★★★ 輸入緩衝區 (Buffer for Input Fix) ★★★
+        // ★★★ 輸入緩衝區 (解決 Python 無限彈窗問題) ★★★
         let pyInputBuffer = "";
+        let currentOutputId = ""; // 紀錄目前正在輸出的框
 
-        // Prompt Tuning: Ensure ARRAY format
         const PROMPT_STRICT_GRADING = `
         你現在是一位電腦科學專家。請對學生的題目與代碼進行評分。
         請回傳嚴格的 JSON 格式：
@@ -572,13 +572,11 @@ else:
         分數向度(1-5分)：1.題目正確性 2.邏輯複雜度 3.實用性 4.代碼正確性 5.代碼可讀性。
         `;
         
-        // ★★★ 修正後的治療 Prompt (限制長度) ★★★
-        const PROMPT_THERAPY_STYLE = `使用者壓力過高。請講一個「30字以內」的極短工程師笑話或鼓勵的話。一定要短。`;
+        const PROMPT_THERAPY_STYLE = `使用者壓力過高。請講一個「50字以內」的極短工程師笑話或鼓勵的話。簡短扼要，又有意義存在。`;
 
         // === API 呼叫防呆機制 (Timeout Wrapper + Auto Retry) ===
-        // V9.0 Upgrade: Auto-Retry Logic
         async function safeCallAI(prompt, system, buttonId, retryCount = 0) {
-            const MAX_RETRIES = 3; // 最多重試 3 次
+            const MAX_RETRIES = 3; 
             const btn = document.getElementById(buttonId);
             
             if(btn) { 
@@ -603,23 +601,44 @@ else:
                 console.warn(`Attempt ${retryCount + 1} failed:`, e);
                 
                 if (retryCount < MAX_RETRIES) {
-                    // 等待 2 秒後重試
                     await new Promise(r => setTimeout(r, 2000));
                     return safeCallAI(prompt, system, buttonId, retryCount + 1);
                 } else {
                     alert("AI 連線失敗，請檢查網路或稍後再試。\n" + e.message);
                     if(btn) { btn.innerText = "重試 / 送出"; btn.disabled = false; }
-                    throw e; // 讓外層 catch 處理
+                    throw e; 
                 }
             }
         }
 
-        // === ★★★ Python Input Fix (Stdin Handler w/ Buffer) ★★★ ===
-        // 修正：當 Pyodide 執行 input() 時，強制跳出 prompt
-        function handlePythonInput(msg) {
-            // 這裡不再直接 prompt，改用 Buffer 機制
-            // Pyodide 會多次呼叫 stdin 來讀取字元
-            return null; // 交給 setStdin 處理
+        // === ★★★ Python 統一執行核心 (解決卡死與輸入回顯) ★★★ ===
+        async function executePythonCode(editorId, outputId) {
+            const code = document.getElementById(editorId).value;
+            const outputBox = document.getElementById(outputId);
+            currentOutputId = outputId; // 記住目前是哪個框在跑，方便輸入回顯
+            
+            outputBox.innerText = "Running...\n";
+            if (!pyodide) { outputBox.innerText += "Python loading...\n"; return; }
+
+            try {
+                // 1. 強制清空緩衝區，避免上一次的殘餘輸入
+                pyInputBuffer = ""; 
+                
+                // 2. 設定標準輸出
+                pyodide.setStdout({
+                    batched: (msg) => { outputBox.innerText += msg + "\n"; }
+                });
+
+                // 3. 執行代碼
+                await pyodide.runPythonAsync(code);
+                outputBox.innerText += "\n[執行結束]";
+            } catch(err) {
+                if(err.message.includes("User Cancelled")) {
+                    outputBox.innerText += "\n[使用者手動中止]";
+                } else {
+                    outputBox.innerText += "\nError:\n" + err;
+                }
+            }
         }
 
         function onYouTubeIframeAPIReady() {
@@ -630,24 +649,16 @@ else:
                 events: { 'onStateChange': onPlayerStateChange }
             });
         }
-        
-        // 此函式由上方的 Firebase 模組呼叫
         window.loadYoutubeAPI = function() {
-            if(window.YT) return; // 避免重複載入
+            if(window.YT) return;
             var tag = document.createElement('script');
             tag.src = "https://www.youtube.com/iframe_api";
             var firstScriptTag = document.getElementsByTagName('script')[0];
             firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
         }
-
         function onPlayerStateChange(event) {
-            let stateStr = "";
-            switch(event.data) {
-                case YT.PlayerState.PLAYING: stateStr = "VIDEO_PLAY"; startReadTimer(); break;
-                case YT.PlayerState.PAUSED: stateStr = "VIDEO_PAUSE"; stopReadTimer(); break;
-                case YT.PlayerState.ENDED: stateStr = "VIDEO_END"; stopReadTimer(); break;
-            }
-            if(stateStr) log('ACT', `${stateStr} at ${Math.floor(ytPlayer.getCurrentTime())}s`);
+            if(event.data === YT.PlayerState.PLAYING) startReadTimer();
+            if(event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) stopReadTimer();
         }
         function startReadTimer() {
             if(readTimerInterval) return;
@@ -660,14 +671,11 @@ else:
         }
         function stopReadTimer() { if(readTimerInterval) { clearInterval(readTimerInterval); readTimerInterval = null; } }
 
-        // ===============================================
-        // Phase 2: 練習區
-        // ===============================================
+        // Phase 2
         async function generatePracticeProblems() {
             const prompt = `[任務] 根據教材設計 3 道 Python 練習題（低中高）。\n教材:${window.LESSON_CONFIG.summary}\n範例:${window.LESSON_CONFIG.code}\n回傳JSON:{"low":{"title":"","desc":"","hint":""},"mid":{...},"high":{...}}`;
             try {
                 const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-gen-ex");
-                console.log("Raw AI Response:", r); // Debug log
                 generatedProblems = JSON.parse(extractJSON(r));
                 document.getElementById('ex-gen-section').style.display = 'none';
                 document.getElementById('ex-solve-section').style.display = 'block';
@@ -675,30 +683,26 @@ else:
                 typeWriterMsg('ai', '題目已生成，請開始挑戰！');
             } catch(e) { console.error(e); }
         }
+        
         function selectDifficulty(level) {
-            // ★★★ 防呆檢查 ★★★
             if(!generatedProblems || !generatedProblems[level]) {
-                console.error("生成題目資料不全:", generatedProblems);
-                alert("題目生成似乎不完整，請重新點選「讓 AI 生成題目」");
-                document.getElementById('ex-gen-section').style.display = 'block';
-                document.getElementById('ex-solve-section').style.display = 'none';
+                alert("題目生成不完整，請重試");
                 return;
             }
-            
             currentDifficulty = level;
             document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`btn-${level}`).classList.add('active');
             const p = generatedProblems[level];
             document.getElementById('ex-q-title').innerText = `${p.title} (${level.toUpperCase()})`;
             document.getElementById('ex-q-desc').innerText = p.desc;
-            document.getElementById('ex-code-editor').value = ""; // 清空
-            document.getElementById('ex-hint-text').innerText = "💡 提示：" + (p.hint || "無"); // 提示在下方
+            document.getElementById('ex-code-editor').value = ""; 
+            document.getElementById('ex-hint-text').innerText = "💡 提示：" + (p.hint || "無");
             document.getElementById('ex-result-text').innerText = "";
             document.getElementById('ex-feedback').style.display = "none";
         }
-        async function runExPython() { const c = document.getElementById('ex-code-editor').value; const o = document.getElementById('ex-output'); o.innerText = "Running...\n"; if (!pyodide) { o.innerText += "Python loading...\n"; return; } try { pyodide.setStdout({batched:(m)=>o.innerText+=m+"\n"}); await pyodide.runPythonAsync(c); } catch(err) { o.innerText += "Error:\n" + err; } }
+        
         async function checkExAnswer() {
-            const c = document.getElementById('ex-code-editor').value; const p = generatedProblems[currentDifficulty]; const btn = document.getElementById('btn-check-ex');
+            const c = document.getElementById('ex-code-editor').value; const p = generatedProblems[currentDifficulty]; 
             const prompt = `[題目] ${p.title}\n[描述] ${p.desc}\n[代碼] ${c}\n判斷對錯回傳JSON:{"correct":true/false,"feedback":"..."}`;
             try {
                 const r = await safeCallAI(prompt, "You are a Tutor.", "btn-check-ex");
@@ -712,9 +716,7 @@ else:
         }
         function finishExercise() { switchPhase('posing'); typeWriterMsg('ai', '太棒了！現在試著自己出題吧！'); }
 
-        // ===============================================
-        // Phase 5: Peer Review (Load & Solve)
-        // ===============================================
+        // Phase 5
         async function loadPeerProblem() {
             const btn = document.querySelector('#phase-human-review button'); btn.innerText = "連線中..."; btn.disabled = true;
             try { 
@@ -733,7 +735,6 @@ else:
             } catch(e) { alert("連線失敗"); } 
             btn.innerText = "📥 載入同儕挑戰"; btn.disabled = false;
         }
-        async function runPeerAttempt() { const c = document.getElementById('hr-attempt-editor').value; const o = document.getElementById('hr-attempt-output'); o.innerText = "Testing...\n"; if (!pyodide) return; try { pyodide.setStdout({ batched: (m) => { o.innerText += m + "\n"; } }); await pyodide.runPythonAsync(c); } catch (err) { o.innerText += "Error:\n" + err; } }
         function revealPeerGrading() { if(document.getElementById('hr-attempt-editor').value.trim().length < 5) return alert("請先試寫代碼！"); document.getElementById('hr-stage-1-solve').style.display = 'none'; document.getElementById('hr-stage-2-grade').style.display = 'block'; document.getElementById('hr-code').innerText = currentPeerRefCode; }
         async function submitHumanReview() {
             const s = [1,2,3,4,5].map(i=>document.getElementById(`hr-s${i}`).value); const c = document.getElementById('hr-comment').value; if(!c) return alert("請寫評語");
@@ -741,9 +742,6 @@ else:
             alert("評分已送出"); document.getElementById('human-review-container').style.display='none'; switchPhase('reflection');
         }
 
-        // ===============================================
-        // Phase Transitions & AI Scoring Fix
-        // ===============================================
         async function finishLearning() {
             if((Date.now()-learningStartTime)/1000 < 5) { stressScore+=20; return typeWriterMsg('ai', '讀太快了！請專心看完影片。'); }
             if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
@@ -765,18 +763,10 @@ else:
                 const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-ai-review"); 
                 const json = JSON.parse(extractJSON(r)); 
                 sessionData.aiScores = json.scores; sessionData.aiComment = json.comment;
-                
-                // 修正：確保 scores 是陣列
                 if (Array.isArray(json.scores) && json.scores.length >= 5) {
-                    for(let i=0; i<5; i++) {
-                        document.getElementById(`ai-s${i+1}`).innerText = json.scores[i];
-                    }
-                } else {
-                    document.getElementById('ai-comment-cell').innerText += " (分數格式解析錯誤)";
+                    for(let i=0; i<5; i++) document.getElementById(`ai-s${i+1}`).innerText = json.scores[i];
                 }
-
                 await sendToGAS({ type: 'PHASE_4_AI', studentId, probTitle: sessionData.probTitle, aiScores: json.scores, aiComment: json.comment });
-                
                 document.getElementById('ai-comment-cell').innerText = ""; 
                 typeWriterText(document.getElementById('ai-comment-cell'), json.comment); 
             } catch(e) { document.getElementById('ai-comment-cell').innerText = "AI Error: " + e.message; }
@@ -788,31 +778,29 @@ else:
             alert("全課程完成！");
         }
 
-        // ===============================================
-        // Core System (Login, Monitor, Chat)
-        // ===============================================
         async function sendMaterialQuestion() { const q = document.getElementById('material-question').value; if(!q) return; log('ACT', `ASK: ${q}`); const r = await callGeminiWithHistory(`[教材]${window.LESSON_CONFIG.summary}\n[問]${q}`, "Tutor"); typeWriterMsg('ai', r); document.getElementById('material-question').value=""; }
         function loginSystem() { if(!document.getElementById('student-id-input').value) return alert("輸入學號"); studentId = document.getElementById('student-id-input').value; document.getElementById('display-student-id').innerText = "ID: "+studentId; document.getElementById('login-overlay').style.display='none'; init(); }
+        
         async function init() {
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
             try { await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)]); isFaceLoaded = true; } catch(e){}
             try { const s = await navigator.mediaDevices.getUserMedia({ video: {} }); document.getElementById('video').srcObject = s; document.getElementById('video').addEventListener('play', ()=>setInterval(monitorLoop, 1000)); } catch(e){}
             try { 
                 pyodide = await loadPyodide(); 
-                // ★★★ 終極 Python 輸入修復 (V9.2) ★★★
+                // ★★★ Pyodide 輸入處理：如果緩衝區有字就直接餵，沒有就跳窗 ★★★
                 pyodide.setStdin({
                     stdin: () => {
-                        // 如果緩衝區沒東西，就跳出 prompt
                         if (!pyInputBuffer) {
-                            let result = window.prompt("Python 程式正在請求輸入 (Input):\n按取消可停止執行");
-                            if (result === null) {
-                                // 使用者按取消 -> 拋出錯誤以停止 Python 執行
-                                throw new Error("使用者中斷執行 (User Cancelled)");
-                            } else {
-                                pyInputBuffer = result + "\n"; // 強制加上換行
+                            let result = window.prompt("Python 請求輸入 (Input):");
+                            if (result === null) throw new Error("User Cancelled");
+                            
+                            // ★★★ 輸入回顯 (Input Echo) ★★★
+                            if(currentOutputId) {
+                                document.getElementById(currentOutputId).innerText += result + "\n";
                             }
+                            
+                            pyInputBuffer = result + "\n";
                         }
-                        // 每次只回傳一個字元，避免 Pyodide 再次呼叫時又跳 prompt
                         let char = pyInputBuffer.charAt(0);
                         pyInputBuffer = pyInputBuffer.slice(1);
                         return char;
@@ -824,7 +812,6 @@ else:
             setInterval(() => tabSwitchCount=0, 5000); typeWriterMsg('ai', `你好！請開始學習。`); learningStartTime = Date.now(); 
         }
         
-        // ★★★ 關鍵修改：情緒與壓力上傳迴圈 ★★★
         async function monitorLoop() {
             if(isPaused) return; let emoDelta=0, actDelta=0, status="正常", statusClass="val";
             if(isFaceLoaded) {
@@ -842,7 +829,6 @@ else:
             if(stressScore>85) triggerTherapy();
             mouseDist=0; backspaceCount=0;
 
-            // ★ 每 10 秒上傳一次監測數據 ★
             const now = Date.now();
             if (now - lastUploadTime > 10000 && window.uploadToFirebase) {
                 window.uploadToFirebase({
@@ -853,50 +839,6 @@ else:
                     phase: currentPhase
                 });
                 lastUploadTime = now;
-            }
-        }
-
-        async function runPython() { 
-            const c = document.getElementById('code-editor').value; 
-            const o = document.getElementById('output'); 
-            o.innerText = "Running...\n"; 
-            if (!pyodide) return; 
-            try { 
-                pyInputBuffer = ""; // 清空緩衝區
-                pyodide.setStdout({batched:(m)=>o.innerText+=m+"\n"}); 
-                await pyodide.runPythonAsync(c); 
-                o.innerText += "\n[執行結束]";
-            } catch(e) { 
-                if(e.message.includes("User Cancelled")) {
-                    o.innerText += "\n[已手動停止]";
-                } else {
-                    o.innerText += "\nError:\n" + e; 
-                }
-            } 
-        }
-        
-        // 萬一卡死，手動重置 Pyodide
-        async function hardResetPyodide() {
-            if(confirm("確定要強制重啟 Python 核心嗎？(目前的變數會消失)")) {
-                try {
-                    document.getElementById('output').innerText = "重啟中...";
-                    pyodide = await loadPyodide();
-                    pyodide.setStdin({
-                        stdin: () => {
-                            if (!pyInputBuffer) {
-                                let result = window.prompt("Python Input:");
-                                if (result === null) throw new Error("User Cancelled");
-                                pyInputBuffer = result + "\n";
-                            }
-                            let char = pyInputBuffer.charAt(0);
-                            pyInputBuffer = pyInputBuffer.slice(1);
-                            return char;
-                        }
-                    });
-                    document.getElementById('output').innerText = "核心已重置，請重新執行代碼。";
-                } catch(e) {
-                    alert("重置失敗，請重新整理網頁");
-                }
             }
         }
 
@@ -932,13 +874,27 @@ else:
         function log(t,d) { if(t!=='ACT'&&t!=='CHAT') sendToGAS({type:'LOG',studentId,action:t,detail:d}); }
         function stopTherapy() { document.getElementById('therapy-overlay').style.display='none'; stressScore=40; isPaused=false; }
         
-        // 萬一卡死，手動重置 UI
-        function forceResetUI() {
-            document.querySelectorAll('button').forEach(b => {
-                b.disabled = false;
-                if(b.innerText.includes("...")) b.innerText = "重試";
-            });
-            alert("介面已強制重置");
+        // 萬一卡死，手動重置 Pyodide
+        async function hardResetPyodide() {
+            if(confirm("確定要強制重啟 Python 核心嗎？")) {
+                try {
+                    document.getElementById('output').innerText = "重啟中...";
+                    pyodide = await loadPyodide();
+                    pyodide.setStdin({
+                        stdin: () => {
+                            if (!pyInputBuffer) {
+                                let result = window.prompt("Python Input:");
+                                if (result === null) throw new Error("User Cancelled");
+                                pyInputBuffer = result + "\n";
+                            }
+                            let char = pyInputBuffer.charAt(0);
+                            pyInputBuffer = pyInputBuffer.slice(1);
+                            return char;
+                        }
+                    });
+                    document.getElementById('output').innerText = "核心已重置。";
+                } catch(e) { alert("重置失敗，請重新整理網頁"); }
+            }
         }
     </script>
 </body>

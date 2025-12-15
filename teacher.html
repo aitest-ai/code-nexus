@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code Nexus - Teacher V8.0 (Edit & Schedule Fixed)</title>
+    <title>Code Nexus - Teacher V8.1 (Chart Optimized)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
@@ -428,7 +428,7 @@
             let html = "";
             // 1. 圖表區
             html += `<div class="detail-card" style="grid-column: span 2;">
-                <h4>📈 壓力與情緒趨勢 (Stress Monitor)</h4>
+                <h4>📈 壓力與情緒趨勢 (Stress Monitor - Zoomed 0-50)</h4>
                 <div style="height: 250px; width: 100%;"><canvas id="emotionChart"></canvas></div>
             </div>`;
             
@@ -455,16 +455,16 @@
 
             body.innerHTML = html;
 
-            // ★★★ 繪製優化後的圖表 ★★★
+            // ★★★ 繪製優化後的圖表 (放大顯示 0-50 範圍) ★★★
             setTimeout(() => {
                 const ctx = document.getElementById('emotionChart').getContext('2d');
                 if(emotionChartInstance) emotionChartInstance.destroy();
                 
                 // 建立背景漸層 (綠->黃->紅)
                 const gradient = ctx.createLinearGradient(0, 250, 0, 0);
-                gradient.addColorStop(0, 'rgba(0, 255, 157, 0.2)');   // 0% Green
-                gradient.addColorStop(0.5, 'rgba(255, 204, 0, 0.2)'); // 50% Yellow
-                gradient.addColorStop(1, 'rgba(255, 51, 51, 0.3)');   // 100% Red
+                gradient.addColorStop(0, 'rgba(0, 255, 157, 0.2)');   // 0% (數值0)
+                gradient.addColorStop(0.5, 'rgba(255, 204, 0, 0.2)'); // 50% (數值25)
+                gradient.addColorStop(1, 'rgba(255, 51, 51, 0.3)');   // 100% (數值50)
 
                 const labels = data.monitors.map(m => new Date(m.createdAt.seconds * 1000).toLocaleTimeString());
                 const stressData = data.monitors.map(m => m.stress);
@@ -474,7 +474,7 @@
                     data: {
                         labels: labels,
                         datasets: [{
-                            label: '壓力指數 (0-100)',
+                            label: '壓力指數 (放大顯示)',
                             data: stressData,
                             borderColor: '#555',
                             borderWidth: 2,
@@ -487,10 +487,26 @@
                     options: {
                         responsive: true, maintainAspectRatio: false,
                         scales: { 
-                            y: { min: 0, max: 100, title: {display:true, text:'壓力值'} }, // 強制 0-100
+                            // ★★★ 關鍵修改：鎖定 Y 軸 0-50，並用 callback 顯示為百分比 ★★★
+                            y: { 
+                                min: 0, 
+                                max: 50, 
+                                title: {display:true, text:'壓力強度 (等比放大 200%)'},
+                                ticks: {
+                                    callback: function(value) {
+                                        return (value * 2) + '%'; // 數值 50 顯示為 100%
+                                    }
+                                }
+                            }, 
                             x: { grid: {display:false} }
                         },
-                        plugins: { tooltip: { callbacks: { label: (c)=> `壓力: ${c.raw}%` } } }
+                        plugins: { 
+                            tooltip: { 
+                                callbacks: { 
+                                    label: (c)=> `原始壓力: ${c.raw} (顯示為: ${c.raw * 2}%)` 
+                                } 
+                            } 
+                        }
                     }
                 });
             }, 200);

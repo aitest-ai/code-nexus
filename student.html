@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus - Student V11.0 (Chat Control & I/O Fix)</title>
+    <title>Code Nexus - Student V12.0 (Ultimate Final)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -271,6 +271,14 @@
         
         /* 自動重試指示燈 */
         #retry-status { font-size: 0.8em; color: #ffcc00; display:none; margin-left:10px; animation: blink 1s infinite; }
+        
+        /* 強制重啟按鈕 (救命用) */
+        .reset-python-btn { 
+            font-size: 0.7em; color: #ff5555; cursor: pointer; 
+            text-decoration: underline; margin-left: 10px; font-weight: bold;
+            border: 1px solid #ff5555; padding: 2px 6px; border-radius: 4px;
+        }
+        .reset-python-btn:hover { background: #ff5555; color: black; }
     </style>
 </head>
 <body>
@@ -298,6 +306,7 @@
     <div class="panel-left">
         <div class="header">
             NEXUS 
+            <span class="reset-python-btn" onclick="hardResetPyodide()" title="如果程式卡死，請按此重啟">🔴 重啟核心</span>
         </div>
         <div id="display-student-id" style="text-align:center; color:#888; margin-bottom:10px;">未登入</div>
         <div class="cam-box"><video id="video" autoplay muted playsinline></video></div>
@@ -330,7 +339,6 @@
                 <div class="video-wrapper"><div id="youtube-player"></div></div>
                 <p id="material-summary">...</p>
                 <pre id="material-code" style="background:#222; padding:10px; color:#aaa; margin-top:0;">...</pre>
-               
                 <hr style="border-color:#333; margin:20px 0;">
                 <button class="btn-action" onclick="finishLearning()">✅ 影片看完，進入練習題</button>
             </div>
@@ -506,7 +514,7 @@
         // 系統核心代碼
         // ===============================================
 
-        // ★★★ 使用者可自訂的聊天室風格 (Prompt) ★★★
+        // ★★★ V12.0: 自訂聊天室風格 (Prompt) ★★★
         const CUSTOM_CHAT_PROMPT = `
         你現在是一位富有耐心的程式設計導師 (Socratic Tutor)。
         1. 請用引導的方式回答學生的問題，不要直接給出完整程式碼。
@@ -592,7 +600,7 @@
             }
         }
 
-        // === ★★★ Python 統一執行核心 (V11.0: Real-time Output & Input Fix) ★★★ ===
+        // === ★★★ Python 統一執行核心 (V12.0: Ultimate Input Fix) ★★★ ===
         async function executePythonCode(editorId, outputId) {
             const code = document.getElementById(editorId).value;
             const outputBox = document.getElementById(outputId);
@@ -624,8 +632,8 @@ def custom_input(prompt_text=""):
     if prompt_text:
         print(prompt_text, end="")
     
-    # ★★★ 關鍵：暫停 0.2 秒，讓瀏覽器有時間把剛剛的 print 畫出來 ★★★
-    time.sleep(0.2)
+    # ★★★ 關鍵修正：暫停 0.5 秒，確保瀏覽器有足夠時間刷新畫面，避免輸入框卡死感覺 ★★★
+    time.sleep(0.5)
     
     # 呼叫瀏覽器原生 prompt
     val = js.prompt(prompt_text if prompt_text else "Python 請求輸入 (Input):")
@@ -823,16 +831,70 @@ builtins.input = custom_input
         // ===============================================
         // Core System (Login, Monitor, Chat)
         // ===============================================
-        async function sendMaterialQuestion() { const q = document.getElementById('material-question').value; if(!q) return; log('ACT', `ASK: ${q}`); const r = await callGeminiWithHistory(`[教材]${window.LESSON_CONFIG.summary}\n[問]${q}`, "Tutor"); typeWriterMsg('ai', r); document.getElementById('material-question').value=""; }
+        
+        // V12.0: 聊天室穩定性修復 (限制長度 & 錯誤除錯)
+        async function sendChat() { 
+            const v=document.getElementById('chat-input').value; if(!v)return; 
+            document.getElementById('chat-msgs').innerHTML+=`<div class="msg user">${v}</div>`; 
+            document.getElementById('chat-input').value=""; 
+            
+            // 限制只傳送最後 10 句，避免 Token 爆炸導致連不上
+            if (chatHistory.length > 20) chatHistory = chatHistory.slice(chatHistory.length - 20);
+            
+            // 使用自訂 Prompt
+            const r = await callGeminiWithHistory(v, `System: ${CUSTOM_CHAT_PROMPT}\nPhase=${currentPhase} Stress=${stressScore}`); 
+            typeWriterMsg('ai', r); 
+            chatHistory.push({role:"user",parts:[{text:v}]},{role:"model",parts:[{text:r}]}); 
+            sendToGAS({type:'CHAT_LOG',studentId,userMsg:v,aiMsg:r}); 
+        }
+        
+        async function callGeminiWithHistory(u,s) { 
+            if(!GAS_URL.startsWith("http")) return "API Error: URL Invalid"; 
+            try {
+                const r = await fetch(GAS_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    body: JSON.stringify({
+                        type: 'CALL_GEMINI_CHAT',
+                        messages: [...chatHistory, {role:"user", parts:[{text:s+"\n"+u}]}]
+                    })
+                });
+                return (await r.json()).text;
+            } catch(e) {
+                console.error("Chat Error:", e);
+                return "連線錯誤，請稍後再試 (或檢查 GAS 部署)";
+            } 
+        }
+        
+        async function callGemini(u,s) { if(!GAS_URL.startsWith("http"))return"API Error"; try{const r=await fetch(GAS_URL,{method:'POST',mode:'cors',body:JSON.stringify({type:'CALL_GEMINI',prompt:s+"\n"+u})});return(await r.json()).text;}catch(e){return"Error";} }
+        
+        // 萬一卡死，手動重置 UI
+        function forceResetUI() {
+            document.querySelectorAll('button').forEach(b => {
+                b.disabled = false;
+                if(b.innerText.includes("...")) b.innerText = "重試";
+            });
+            alert("介面已強制重置");
+        }
+        
+        // 萬一卡死，手動重置 Pyodide
+        async function hardResetPyodide() {
+            if(confirm("確定要強制重啟 Python 核心嗎？")) {
+                try {
+                    document.getElementById('output').innerText = "重啟中...";
+                    pyodide = await loadPyodide();
+                    // 重啟後不需特別做什麼，executePythonCode 會自動注入覆寫
+                    document.getElementById('output').innerText = "核心已重置。";
+                } catch(e) { alert("重置失敗，請重新整理網頁"); }
+            }
+        }
+
         function loginSystem() { if(!document.getElementById('student-id-input').value) return alert("輸入學號"); studentId = document.getElementById('student-id-input').value; document.getElementById('display-student-id').innerText = "ID: "+studentId; document.getElementById('login-overlay').style.display='none'; init(); }
         async function init() {
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
             try { await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)]); isFaceLoaded = true; } catch(e){}
             try { const s = await navigator.mediaDevices.getUserMedia({ video: {} }); document.getElementById('video').srcObject = s; document.getElementById('video').addEventListener('play', ()=>setInterval(monitorLoop, 1000)); } catch(e){}
-            try { 
-                pyodide = await loadPyodide(); 
-                // V11.0: 這裡不需要 setStdin，因為 executePythonCode 會動態注入覆寫代碼
-            } catch(e){}
+            try { pyodide = await loadPyodide(); } catch(e){}
             document.addEventListener('mousemove', (e) => { if(lastMouseX!==0) mouseDist+=Math.sqrt(Math.pow(e.clientX-lastMouseX,2)+Math.pow(e.clientY-lastMouseY,2)); lastMouseX=e.clientX; lastMouseY=e.clientY; });
             document.addEventListener('keydown', (e)=> { if(e.key==='Backspace') backspaceCount++; });
             setInterval(() => tabSwitchCount=0, 5000); typeWriterMsg('ai', `你好！請開始學習。`); learningStartTime = Date.now(); 
@@ -871,22 +933,6 @@ builtins.input = custom_input
         }
 
         async function runPython() { await executePythonCode('code-editor', 'output'); }
-        async function sendChat() { 
-            const v=document.getElementById('chat-input').value; if(!v)return; 
-            document.getElementById('chat-msgs').innerHTML+=`<div class="msg user">${v}</div>`; 
-            document.getElementById('chat-input').value=""; 
-            
-            // ★★★ V11.0: 加入自訂 Prompt 與限制歷史紀錄 ★★★
-            // 限制只傳送最後 10 句，避免 Token 爆炸
-            if (chatHistory.length > 20) chatHistory = chatHistory.slice(chatHistory.length - 20);
-            
-            const r = await callGeminiWithHistory(v, `System: ${CUSTOM_CHAT_PROMPT}\nPhase=${currentPhase} Stress=${stressScore}`); 
-            typeWriterMsg('ai', r); 
-            chatHistory.push({role:"user",parts:[{text:v}]},{role:"model",parts:[{text:r}]}); 
-            sendToGAS({type:'CHAT_LOG',studentId,userMsg:v,aiMsg:r}); 
-        }
-        async function callGeminiWithHistory(u,s) { if(!GAS_URL.startsWith("http"))return"API Error"; try{const r=await fetch(GAS_URL,{method:'POST',mode:'cors',body:JSON.stringify({type:'CALL_GEMINI_CHAT',messages:[...chatHistory,{role:"user",parts:[{text:s+"\n"+u}]}]})});return(await r.json()).text;}catch(e){return"Error";} }
-        async function callGemini(u,s) { if(!GAS_URL.startsWith("http"))return"API Error"; try{const r=await fetch(GAS_URL,{method:'POST',mode:'cors',body:JSON.stringify({type:'CALL_GEMINI',prompt:s+"\n"+u})});return(await r.json()).text;}catch(e){return"Error";} }
         
         async function triggerTherapy() { 
             if(isPaused)return; isPaused=true; 
@@ -907,6 +953,7 @@ builtins.input = custom_input
         }
         function log(t,d) { if(t!=='ACT'&&t!=='CHAT') sendToGAS({type:'LOG',studentId,action:t,detail:d}); }
         function stopTherapy() { document.getElementById('therapy-overlay').style.display='none'; stressScore=40; isPaused=false; }
+        
     </script>
 </body>
 </html>

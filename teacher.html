@@ -3,13 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Code Nexus - Teacher V11.0 (Iansui + All Features)</title>
-    
-    <link href="https://cdn.jsdelivr.net/npm/iansui@0.9.4/data/iansui.min.css" rel="stylesheet">
-    
+    <title>教師後臺系統</title>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
+
     <style>
+        /* ✅ 穩定載入：芫荽 Iansui（繁中子集） */
+        @font-face {
+          font-family: 'Iansui';
+          font-style: normal;
+          font-display: swap;
+          font-weight: 400;
+          src:
+            url('https://cdn.jsdelivr.net/fontsource/fonts/iansui@latest/chinese-traditional-400-normal.woff2') format('woff2'),
+            url('https://cdn.jsdelivr.net/fontsource/fonts/iansui@latest/chinese-traditional-400-normal.woff') format('woff');
+        }
+
         /* =========================================
            1. 核心樣式 (字體更新)
            ========================================= */
@@ -245,7 +254,7 @@
 <body>
 
     <div class="sidebar">
-        <div class="brand">🚀 Code Nexus Pro</div>
+        <div class="brand">🚀 教師後臺系統</div>
         <div class="menu-item active" onclick="app.switchView('dashboard')">📊 數據儀表板</div>
         <div class="menu-item" onclick="app.switchView('courses')">📚 課程與排程</div>
         <div class="menu-item" onclick="app.switchView('questions')">🧩 題庫審核</div>
@@ -256,7 +265,7 @@
     <div class="main-content">
         
         <div id="view-dashboard" class="view-section active">
-            <div class="header"><h2>平台概況</h2></div>
+            <div class="header"><h2>教師後臺系統</h2></div>
             <div class="dashboard-grid">
                 <div class="stat-card">
                     <h3>總課程單元</h3><div class="number" id="stat-units">0</div>
@@ -276,7 +285,7 @@
 
         <div id="view-courses" class="view-section">
             <div class="header">
-                <h2>教材列表與排程</h2>
+                <h2>教師後臺系統</h2>
                 <button class="btn btn-primary" onclick="app.openCourseModal()">+ 新增單元</button>
             </div>
             <div class="table-container">
@@ -289,7 +298,7 @@
 
         <div id="view-questions" class="view-section">
             <div class="header">
-                <h2>學生題庫審核中心</h2>
+                <h2>教師後臺系統</h2>
             </div>
             <div style="background:#fff; padding:15px; margin-bottom:20px; border-radius:8px; color:#666; font-size:1em; border-left: 4px solid var(--accent);">
                 💡 說明：此處收集所有學生在「擬題階段」送出的題目。老師可進行修改或刪除。未被刪除的題目將自動進入該單元的同儕互評池。
@@ -303,7 +312,7 @@
         </div>
 
         <div id="view-students" class="view-section">
-            <div class="header"><h2>學生學習狀況</h2></div>
+            <div class="header"><h2>教師後臺系統</h2></div>
             <div class="table-container">
                 <table class="student-table">
                     <thead><tr><th>學號</th><th>最後活動時間</th><th>當前進度 (狀態)</th><th>操作</th></tr></thead>
@@ -337,11 +346,8 @@
             </div>
 
             <div id="tab-learning" class="modal-body"></div>
-
             <div id="tab-posing" class="modal-body"></div>
-
             <div id="tab-reflection" class="modal-body"></div>
-
             <div id="tab-chat" class="modal-body"></div>
         </div>
     </div>

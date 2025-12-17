@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>教師後臺系統</title>
-
+    <title>Code Nexus - Teacher V11.1 (Shelf-off Feature)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+    
     <style>
         /* ✅ 穩定載入：芫荽 Iansui（繁中子集） */
         @font-face {
@@ -14,9 +13,8 @@
           font-style: normal;
           font-display: swap;
           font-weight: 400;
-          src:
-            url('https://cdn.jsdelivr.net/fontsource/fonts/iansui@latest/chinese-traditional-400-normal.woff2') format('woff2'),
-            url('https://cdn.jsdelivr.net/fontsource/fonts/iansui@latest/chinese-traditional-400-normal.woff') format('woff');
+          src: url('https://cdn.jsdelivr.net/fontsource/fonts/iansui@latest/chinese-traditional-400-normal.woff2') format('woff2'),
+               url('https://cdn.jsdelivr.net/fontsource/fonts/iansui@latest/chinese-traditional-400-normal.woff') format('woff');
         }
 
         /* =========================================
@@ -38,7 +36,7 @@
             height: 100vh; 
             background: var(--main-bg); 
             overflow: hidden; 
-            letter-spacing: 0.5px; /* 芫荽體稍微寬一點點比較好看 */
+            letter-spacing: 0.5px; 
         }
         
         /* 側邊欄 */
@@ -53,7 +51,7 @@
             flex-shrink: 0; 
         }
         .brand { 
-            font-size: 1.6em; /* 字體加大一點 */
+            font-size: 1.6em; 
             font-weight: bold; 
             color: #00ff9d; 
             margin-bottom: 40px; 
@@ -71,7 +69,7 @@
             display: flex; 
             align-items: center; 
             gap: 10px; 
-            font-size: 1.1em; /* 選單字體加大 */
+            font-size: 1.1em; 
         }
         .menu-item:hover { background: #333; color: white; }
         .menu-item.active { 
@@ -122,7 +120,7 @@
             font-size: 1rem; 
         }
         .stat-card .number { 
-            font-size: 3em; /* 數字加大 */
+            font-size: 3em; 
             font-weight: bold; 
             color: var(--text-dark); 
             margin-top: 5px; 
@@ -139,7 +137,7 @@
             padding: 15px 20px; 
             text-align: left; 
             border-bottom: 1px solid #eee; 
-            font-size: 1.05em; /* 表格字體加大 */
+            font-size: 1.05em; 
         }
         th { 
             background: #fafafa; 
@@ -196,7 +194,7 @@
         .detail-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: bold; }
         
         .modal-body { flex: 1; padding: 30px; overflow-y: auto; display: none; }
-        .modal-body.active { display: block; } /* 控制分頁顯示 */
+        .modal-body.active { display: block; }
 
         .detail-card { 
             background: white; 
@@ -285,20 +283,20 @@
 
         <div id="view-courses" class="view-section">
             <div class="header">
-                <h2>教師後臺系統</h2>
+                <h2>教材列表與排程</h2>
                 <button class="btn btn-primary" onclick="app.openCourseModal()">+ 新增單元</button>
             </div>
             <div class="table-container">
                 <table class="course-table">
-                    <thead><tr><th width="50">序</th><th>單元標題</th><th>開放日期</th><th>影片ID</th><th>狀態</th><th width="150">操作</th></tr></thead>
-                    <tbody id="course-list-body"><tr><td colspan="6" style="text-align:center;">載入中...</td></tr></tbody>
+                    <thead><tr><th width="50">序</th><th>單元標題</th><th>開放日期</th><th>下架日期</th><th>影片ID</th><th>狀態</th><th width="150">操作</th></tr></thead>
+                    <tbody id="course-list-body"><tr><td colspan="7" style="text-align:center;">載入中...</td></tr></tbody>
                 </table>
             </div>
         </div>
 
         <div id="view-questions" class="view-section">
             <div class="header">
-                <h2>教師後臺系統</h2>
+                <h2>學生題庫審核中心</h2>
             </div>
             <div style="background:#fff; padding:15px; margin-bottom:20px; border-radius:8px; color:#666; font-size:1em; border-left: 4px solid var(--accent);">
                 💡 說明：此處收集所有學生在「擬題階段」送出的題目。老師可進行修改或刪除。未被刪除的題目將自動進入該單元的同儕互評池。
@@ -312,7 +310,7 @@
         </div>
 
         <div id="view-students" class="view-section">
-            <div class="header"><h2>教師後臺系統</h2></div>
+            <div class="header"><h2>學生學習狀況</h2></div>
             <div class="table-container">
                 <table class="student-table">
                     <thead><tr><th>學號</th><th>最後活動時間</th><th>當前進度 (狀態)</th><th>操作</th></tr></thead>
@@ -339,8 +337,8 @@
             
             <div id="tab-overview" class="modal-body active">
                 <div class="detail-card">
-                    <h4>📈 壓力指數趨勢</h4>
-                    <p style="color:#666; font-size:0.9em; margin-bottom:15px;">說明：背景色代表壓力區間 (綠=低壓, 黃=中壓, 紅=高壓)。</p>
+                    <h4>📈 壓力指數趨勢 (優化顯示：0-50 放大至 100%)</h4>
+                    <p style="color:#666; font-size:0.9em; margin-bottom:15px;">說明：為了更清晰顯示波動，圖表將原始數值 0-50 放大為 0-100% 呈現。背景色代表壓力區間 (綠=低壓, 黃=中壓, 紅=高壓)。</p>
                     <div style="height: 350px; width: 100%;"><canvas id="emotionChart"></canvas></div>
                 </div>
             </div>
@@ -387,7 +385,7 @@
         let db;
         let chartInstance = null;
         let emotionChartInstance = null;
-        let currentDetailData = null; // 暫存目前查看的學生資料
+        let currentDetailData = null;
 
         try {
             if (firebaseConfig.projectId.includes("YOUR_PROJECT")) throw new Error("請先填入 Firebase Config！");
@@ -396,7 +394,6 @@
             initListeners();
         } catch (e) { alert("系統錯誤: " + e.message); }
 
-        // ★★★ 核心修正：邏輯分離 (Heartbeat vs Progress) ★★★
         function initListeners() {
             // 1. 監聽課程
             onSnapshot(query(collection(db, "units"), orderBy("order", "asc")), snap => {
@@ -411,7 +408,6 @@
                 const students = {};
                 const questions = [];
                 
-                // 學習進度計數器
                 const phaseCounts = {
                     'PHASE_1_LEARNING': 0, 'PHASE_2_EXERCISE': 0, 'PHASE_3_POSING': 0,
                     'PHASE_4_AI': 0, 'PHASE_5_PEER': 0, 'PHASE_6_REFLECTION': 0
@@ -422,7 +418,6 @@
                     const r = { id: d.id, ...data };
                     
                     if(data.studentId) {
-                        // 初始化學生物件
                         if(!students[data.studentId]) {
                             students[data.studentId] = { 
                                 id: data.studentId, 
@@ -434,14 +429,11 @@
                         
                         const s = students[data.studentId];
 
-                        // A. 更新最後上線時間 (Heartbeat) - 任何 Log 都算
                         if (data.createdAt && data.createdAt.seconds) {
                             const time = data.createdAt.seconds * 1000;
                             if (time > s.lastSeen) s.lastSeen = time;
                         }
 
-                        // B. 更新學習進度 (Milestone) - 只有 PHASE_ 事件才算進度
-                        // 避免 MONITOR_LOG 覆蓋掉真正的學習狀態
                         if (data.type.startsWith('PHASE_')) {
                             const time = data.createdAt.seconds * 1000;
                             if (time > s.phaseTime) {
@@ -454,36 +446,27 @@
                     if(data.type === 'PHASE_3_POSING') questions.push(r);
                 });
                 
-                // 計算圖表數據與活躍人數
                 let activeCount = 0;
                 const now = Date.now();
 
                 Object.values(students).forEach(s => {
-                    // 判斷活躍狀態 (5分鐘內有動作)
                     if (now - s.lastSeen < 5 * 60 * 1000) activeCount++;
-                    
-                    // 統計進度 (只統計有效的 PHASE)
                     if (phaseCounts[s.currentPhase] !== undefined) phaseCounts[s.currentPhase]++;
                 });
 
                 renderStudents(Object.values(students));
                 renderQuestions(questions);
-                document.getElementById('stat-students').innerText = activeCount; // 顯示活躍人數
+                document.getElementById('stat-students').innerText = activeCount;
                 document.getElementById('stat-questions').innerText = questions.length;
 
-                // 更新圖表
                 updateProgressChart(phaseCounts);
             });
         }
 
-        // 新圖表：學習進度長條圖 (字體優化)
         function updateProgressChart(counts) {
             const ctx = document.getElementById('mainChart').getContext('2d');
             if(chartInstance) chartInstance.destroy();
-
-            // Chart.js 預設字體也設為 Iansui
             Chart.defaults.font.family = "'Iansui', 'Microsoft JhengHei', sans-serif";
-
             chartInstance = new Chart(ctx, { 
                 type: 'bar',
                 data: { 
@@ -504,9 +487,7 @@
         }
 
         function renderStudents(list) {
-            // 排序：先按最後上線時間排序
             list.sort((a,b) => b.lastSeen - a.lastSeen);
-            
             const now = Date.now();
             const actionMap = {
                 'PHASE_1_LEARNING': '🎥 觀看影片', 'PHASE_2_EXERCISE': '🏋️ 練習題', 'PHASE_3_POSING': '📝 出題中',
@@ -518,14 +499,12 @@
                 const diff = now - s.lastSeen;
                 const timeStr = new Date(s.lastSeen).toLocaleTimeString();
                 
-                // 狀態判斷邏輯
                 let statusBadge = '';
-                if (diff > 30 * 60 * 1000) { // > 30 mins
+                if (diff > 30 * 60 * 1000) { 
                     statusBadge = `<span class="badge badge-offline">🔴 離線</span>`;
-                } else if (diff > 5 * 60 * 1000) { // > 5 mins
+                } else if (diff > 5 * 60 * 1000) { 
                     statusBadge = `<span class="badge badge-idle">💤 閒置</span>`;
                 } else {
-                    // 線上且活躍，顯示當前進度
                     const label = actionMap[s.currentPhase] || s.currentPhase;
                     statusBadge = `<span class="badge badge-active">${label}</span>`;
                 }
@@ -545,6 +524,7 @@
                 <tr>
                     <td>${u.order}</td><td><strong>${u.title}</strong></td>
                     <td><span class="badge badge-date">${u.releaseDate || '未設定'}</span></td>
+                    <td><span class="badge badge-date" style="background:#fee;">${u.removeDate || '-'}</span></td>
                     <td>${u.youtubeId}</td>
                     <td>${u.isActive?'<span class="badge badge-active">上架</span>':'<span class="badge badge-draft">草稿</span>'}</td>
                     <td>
@@ -572,9 +552,7 @@
             }).join('');
         }
 
-        function updateDash(total, active) {
-            // 這個圖表已被取代，但函式保留以免報錯，僅更新文字
-        }
+        function updateDash(total, active) { }
 
         // === 學生詳情 ===
         window.app.viewDetail = async function(sid) {
@@ -618,7 +596,6 @@
             if(emotionChartInstance) emotionChartInstance.destroy();
             const labels = currentDetailData.monitors.map(m => new Date(m.createdAt.seconds * 1000).toLocaleTimeString());
             const stressData = currentDetailData.monitors.map(m => Math.min(m.stress * 2, 100)); 
-            
             const gradient = ctx.createLinearGradient(0, 300, 0, 0);
             gradient.addColorStop(0, 'rgba(0, 255, 157, 0.2)'); gradient.addColorStop(0.5, 'rgba(255, 204, 0, 0.2)'); gradient.addColorStop(1, 'rgba(255, 51, 51, 0.3)');
 
@@ -648,7 +625,8 @@
             document.getElementById('modal-form').style.display = 'flex';
             document.getElementById('form-title').innerText = type==='course' ? '編輯教材' : '編輯學生題目';
             if(type === 'course') {
-                container.innerHTML = `<div class="form-group"><label>排序</label><input type="number" id="f-order" class="form-input" value="${data.order||1}"></div><div class="form-group"><label>📅 開放日期</label><input type="date" id="f-date" class="form-input" value="${data.releaseDate||''}"></div><div class="form-group"><label>標題</label><input type="text" id="f-title" class="form-input" value="${data.title||''}"></div><div class="form-group"><label>YouTube ID</label><input type="text" id="f-vid" class="form-input" value="${data.youtubeId||''}"></div><div class="form-group"><label>摘要</label><input type="text" id="f-sum" class="form-input" value="${data.summary||''}"></div><div class="form-group"><label>代碼</label><textarea id="f-code" class="form-input" style="height:60px;">${data.code||''}</textarea></div><div class="form-group"><label>狀態</label><select id="f-active" class="form-input"><option value="true" ${data.isActive?'selected':''}>上架</option><option value="false" ${!data.isActive?'selected':''}>草稿</option></select></div>`;
+                // ★★★ 新增：下架日期欄位 ★★★
+                container.innerHTML = `<div class="form-group"><label>排序</label><input type="number" id="f-order" class="form-input" value="${data.order||1}"></div><div class="form-group"><label>📅 開放日期</label><input type="date" id="f-date" class="form-input" value="${data.releaseDate||''}"></div><div class="form-group"><label>🚫 下架日期 (自動隱藏)</label><input type="date" id="f-offdate" class="form-input" value="${data.removeDate||''}"></div><div class="form-group"><label>標題</label><input type="text" id="f-title" class="form-input" value="${data.title||''}"></div><div class="form-group"><label>YouTube ID</label><input type="text" id="f-vid" class="form-input" value="${data.youtubeId||''}"></div><div class="form-group"><label>摘要</label><input type="text" id="f-sum" class="form-input" value="${data.summary||''}"></div><div class="form-group"><label>代碼</label><textarea id="f-code" class="form-input" style="height:60px;">${data.code||''}</textarea></div><div class="form-group"><label>狀態</label><select id="f-active" class="form-input"><option value="true" ${data.isActive?'selected':''}>上架</option><option value="false" ${!data.isActive?'selected':''}>草稿</option></select></div>`;
             } else if (type === 'question') {
                 container.innerHTML = `<div class="form-group"><label>所屬單元</label><input type="text" id="f-unit" class="form-input" value="${data.unitTitle||''}" placeholder="請輸入單元名稱以歸類"></div><div class="form-group"><label>題目名稱</label><input type="text" id="f-qtitle" class="form-input" value="${data.probTitle||''}"></div><div class="form-group"><label>題目敘述</label><textarea id="f-qdesc" class="form-input" style="height:80px;">${data.probDesc||''}</textarea></div><div class="form-group"><label>參考解答</label><textarea id="f-qcode" class="form-input" style="height:80px;">${data.probCode||''}</textarea></div>`;
             }
@@ -659,7 +637,8 @@
             const id = document.getElementById('inp-id').value;
             let payload = {};
             if(type === 'course') {
-                payload = { order: Number(document.getElementById('f-order').value), title: document.getElementById('f-title').value, youtubeId: document.getElementById('f-vid').value, summary: document.getElementById('f-sum').value, code: document.getElementById('f-code').value, releaseDate: document.getElementById('f-date').value, isActive: document.getElementById('f-active').value === 'true', updatedAt: new Date() };
+                // ★★★ 新增：儲存下架日期 ★★★
+                payload = { order: Number(document.getElementById('f-order').value), title: document.getElementById('f-title').value, youtubeId: document.getElementById('f-vid').value, summary: document.getElementById('f-sum').value, code: document.getElementById('f-code').value, releaseDate: document.getElementById('f-date').value, removeDate: document.getElementById('f-offdate').value, isActive: document.getElementById('f-active').value === 'true', updatedAt: new Date() };
                 if(!id) payload.createdAt = new Date();
                 try { if(id) await updateDoc(doc(db,"units",id), payload); else await addDoc(collection(db,"units"), payload); document.getElementById('modal-form').style.display='none'; } catch(e){ alert(e.message); }
             } else if (type === 'question') {

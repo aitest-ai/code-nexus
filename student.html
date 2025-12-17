@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus - Student V13.0 (Clean Interface)</title>
+    <title>Code Nexus - Student V13.1 (Flow Lock)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -22,10 +22,21 @@
             --text: #e0e0e0; 
             --border: #333; 
         }
+                /* ✅ 字體：芫荽 Iansui（繁中） */
+        @font-face {
+            font-family: 'Iansui';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src:
+                url('https://cdn.jsdelivr.net/fontsource/fonts/iansui@latest/chinese-traditional-400-normal.woff2') format('woff2'),
+                url('https://cdn.jsdelivr.net/fontsource/fonts/iansui@latest/chinese-traditional-400-normal.woff') format('woff');
+        }
+
         body { 
             background: var(--bg-color); 
             color: var(--text); 
-            font-family: 'Microsoft JhengHei', sans-serif; 
+            font-family: 'Iansui','Microsoft JhengHei', sans-serif; 
             margin: 0; 
             display: flex; 
             height: 100vh; 
@@ -123,6 +134,8 @@
             font-size: 0.9em; 
         }
         .tab-btn.active { background: var(--accent-dim); color: white; border-color: var(--accent); }
+        /* 鎖定狀態樣式 */
+        .tab-btn.locked { opacity: 0.5; cursor: not-allowed; border-color: #333; background: #111; }
 
         /* 中間內容區 */
         .content-area { 
@@ -313,12 +326,12 @@
 
     <div class="panel-right">
         <div class="nav-tabs">
-            <button class="tab-btn active" onclick="switchPhase('learning')">1. 學習 (LN)</button>
-            <button class="tab-btn" onclick="switchPhase('exercise')">2. 練習 (EX)</button>
-            <button class="tab-btn" onclick="switchPhase('posing')">3. 擬題 (PP)</button>
-            <button class="tab-btn" onclick="switchPhase('ai-review')">4. AI 評我 (PA)</button> 
-            <button class="tab-btn" onclick="switchPhase('human-review')">5. 評同儕 (HR)</button> 
-            <button class="tab-btn" onclick="switchPhase('reflection')">6. 反思 (RF)</button>
+            <button class="tab-btn active" id="tab-learning" onclick="switchPhase('learning')">1. 學習 (LN)</button>
+            <button class="tab-btn locked" id="tab-exercise" onclick="switchPhase('exercise')">2. 練習 (EX)</button>
+            <button class="tab-btn locked" id="tab-posing" onclick="switchPhase('posing')">3. 擬題 (PP)</button>
+            <button class="tab-btn locked" id="tab-ai-review" onclick="switchPhase('ai-review')">4. AI 評我 (PA)</button> 
+            <button class="tab-btn locked" id="tab-human-review" onclick="switchPhase('human-review')">5. 評同儕 (HR)</button> 
+            <button class="tab-btn locked" id="tab-reflection" onclick="switchPhase('reflection')">6. 反思 (RF)</button>
         </div>
 
         <div id="phase-learning" class="content-area active">
@@ -438,13 +451,12 @@
         // ★★★ 請在下方貼上您的 Firebase Config ★★★
         // ============================================
         const firebaseConfig = {
-              apiKey: "AIzaSyBgx03WUCJhe3ymWhecEYfiyShmcy9bCkg",
-              authDomain: "code-a1ef3.firebaseapp.com",
-              projectId: "code-a1ef3",
-              storageBucket: "code-a1ef3.firebasestorage.app",
-              messagingSenderId: "733626558270",
-              appId: "1:733626558270:web:6d0ffcae5a5b329b212e6f",
-              measurementId: "G-547WFQWRHZ"
+            apiKey: "AIzaSy...", 
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "...",
+            appId: "..."
         };
 
         // 初始化 Firebase (若未填 Config 則跳過)
@@ -533,6 +545,17 @@
         let generatedProblems = null; 
         let currentDifficulty = ''; 
         let lastUploadTime = 0; // 控制上傳頻率
+        
+        // ★★★ 階段解鎖狀態 (V13.1) ★★★
+        let unlockedPhases = {
+            'learning': true,
+            'exercise': false,
+            'posing': false,
+            'ai-review': false,
+            'human-review': false,
+            'reflection': false
+        };
+        const phaseOrder = ['learning', 'exercise', 'posing', 'ai-review', 'human-review', 'reflection'];
 
         // Prompt Tuning: Ensure ARRAY format
         const PROMPT_STRICT_GRADING = `
@@ -738,7 +761,12 @@ builtins.input = custom_input
                 document.getElementById('ex-feedback').style.display = 'block';
                 document.getElementById('ex-result-text').innerText = json.feedback;
                 await sendToGAS({ type: 'PHASE_2_EXERCISE', studentId, difficulty: currentDifficulty, title: p.title, code: c, passed: json.correct?"PASS":"FAIL", feedback: json.feedback });
-                if(json.correct) { document.getElementById('ex-feedback').style.borderColor = "#00ff9d"; document.getElementById('btn-next-phase').style.display = 'inline-block'; } 
+                if(json.correct) { 
+                    document.getElementById('ex-feedback').style.borderColor = "#00ff9d"; 
+                    document.getElementById('btn-next-phase').style.display = 'inline-block'; 
+                    // 自動解鎖下一階段
+                    unlockPhase('posing');
+                } 
                 else { document.getElementById('ex-feedback').style.borderColor = "#ff3333"; }
             } catch(e) { console.error(e); }
         }
@@ -770,7 +798,9 @@ builtins.input = custom_input
         async function submitHumanReview() {
             const s = [1,2,3,4,5].map(i=>document.getElementById(`hr-s${i}`).value); const c = document.getElementById('hr-comment').value; if(!c) return alert("請寫評語");
             await sendToGAS({ type:'PHASE_5_PEER', studentId, targetTitle:currentPeerProblemTitle, scores:s, comment:c }); 
-            alert("評分已送出"); document.getElementById('human-review-container').style.display='none'; switchPhase('reflection');
+            alert("評分已送出"); document.getElementById('human-review-container').style.display='none'; 
+            unlockPhase('reflection'); // 解鎖
+            switchPhase('reflection');
         }
 
         // ===============================================
@@ -780,13 +810,16 @@ builtins.input = custom_input
             if((Date.now()-learningStartTime)/1000 < 5) { stressScore+=20; return typeWriterMsg('ai', '讀太快了！請專心看完影片。'); }
             if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             await sendToGAS({ type: 'PHASE_1_LEARNING', studentId, readingTime: readSeconds });
-            log('LN',`完成 - 閱讀時長: ${readSeconds}s`); switchPhase('exercise');
+            log('LN',`完成 - 閱讀時長: ${readSeconds}s`); 
+            unlockPhase('exercise'); // 解鎖
+            switchPhase('exercise');
         }
         async function finishPosing() {
             const t = document.getElementById('pp-title').value; const c = document.getElementById('code-editor').value;
             if(!t) return alert("請填寫題目");
             sessionData.probTitle = t; sessionData.probDesc = document.getElementById('pp-desc').value; sessionData.probCode = c;
             await sendToGAS({ type: 'PHASE_3_POSING', studentId, probTitle: t, probDesc: sessionData.probDesc, probCode: c });
+            unlockPhase('ai-review'); // 解鎖
             switchPhase('ai-review'); 
         }
         
@@ -794,7 +827,7 @@ builtins.input = custom_input
             document.getElementById('ai-result').style.display='block'; document.getElementById('ai-comment-cell').innerText = "AI 評分中...";
             const prompt = `${PROMPT_STRICT_GRADING} 題目：${sessionData.probTitle} 敘述：${sessionData.probDesc} 代碼：${sessionData.probCode}`;
             try { 
-                const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-ai-review"); // Use safeCall
+                const r = await safeCallAI(prompt, "You are a JSON generator.", "btn-ai-review"); 
                 const json = JSON.parse(extractJSON(r)); 
                 sessionData.aiScores = json.scores; sessionData.aiComment = json.comment;
                 
@@ -811,6 +844,12 @@ builtins.input = custom_input
                 
                 document.getElementById('ai-comment-cell').innerText = ""; 
                 typeWriterText(document.getElementById('ai-comment-cell'), json.comment); 
+                
+                // AI 評完分後，解鎖下一關
+                setTimeout(() => {
+                    unlockPhase('human-review');
+                }, 2000);
+
             } catch(e) { document.getElementById('ai-comment-cell').innerText = "AI Error: " + e.message; }
         }
 
@@ -824,23 +863,32 @@ builtins.input = custom_input
         // Core System (Login, Monitor, Chat)
         // ===============================================
         
-        // V12.0: 聊天室穩定性修復 (限制長度 & 錯誤除錯)
+        // V13.1: 聊天室穩定性修復 (限制長度 & 錯誤除錯 & 傳送上下文)
         async function sendChat() { 
             const v=document.getElementById('chat-input').value; if(!v)return; 
             document.getElementById('chat-msgs').innerHTML+=`<div class="msg user">${v}</div>`; 
             document.getElementById('chat-input').value=""; 
             
-            // 限制只傳送最後 10 句，避免 Token 爆炸導致連不上
+            // 限制只傳送最後 10 句
             if (chatHistory.length > 20) chatHistory = chatHistory.slice(chatHistory.length - 20);
             
-            // 使用自訂 Prompt
-            const r = await callGeminiWithHistory(v, `System: ${CUSTOM_CHAT_PROMPT}\nPhase=${currentPhase} Stress=${stressScore}`); 
+            // 將本次問題加入歷史
+            const userMessage = {role:"user", parts:[{text: `System: ${CUSTOM_CHAT_PROMPT}\nPhase=${currentPhase}\nUser Question: ${v}`}]};
+            
+            // 呼叫 AI 時，傳入完整的 chatHistory + 本次問題
+            const r = await callGeminiChat([...chatHistory, userMessage]); 
+            
             typeWriterMsg('ai', r); 
-            chatHistory.push({role:"user",parts:[{text:v}]},{role:"model",parts:[{text:r}]}); 
+            
+            // 更新歷史紀錄
+            chatHistory.push(userMessage);
+            chatHistory.push({role:"model", parts:[{text:r}]});
+            
             sendToGAS({type:'CHAT_LOG',studentId,userMsg:v,aiMsg:r}); 
         }
         
-        async function callGeminiWithHistory(u,s) { 
+        // V13.1 修正：直接傳遞 messages 陣列
+        async function callGeminiChat(messages) { 
             if(!GAS_URL.startsWith("http")) return "API Error: URL Invalid"; 
             try {
                 const r = await fetch(GAS_URL, {
@@ -848,13 +896,13 @@ builtins.input = custom_input
                     mode: 'cors',
                     body: JSON.stringify({
                         type: 'CALL_GEMINI_CHAT',
-                        messages: [...chatHistory, {role:"user", parts:[{text:s+"\n"+u}]}]
+                        messages: messages // 直接傳送整個陣列
                     })
                 });
                 return (await r.json()).text;
             } catch(e) {
                 console.error("Chat Error:", e);
-                return "連線錯誤，請稍後再試 (或檢查 GAS 部署)";
+                return "連線錯誤，請稍後再試。";
             } 
         }
         
@@ -927,7 +975,29 @@ builtins.input = custom_input
             setTimeout(()=>document.getElementById('btn-resume').style.opacity='1',2000); 
         }
 
-        function switchPhase(p) { tabSwitchCount++; currentPhase=p; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); document.querySelectorAll('.content-area').forEach(c=>c.classList.remove('active')); const idx=['learning','exercise','posing','ai-review','human-review','reflection'].indexOf(p); document.querySelectorAll('.tab-btn')[idx].classList.add('active'); document.querySelectorAll('.content-area')[idx].classList.add('active'); log('NAV',p); }
+        // ★★★ V13.1: 頁籤切換與鎖定機制 ★★★
+        function switchPhase(p) { 
+            // 檢查是否解鎖
+            if(!unlockedPhases[p]) return;
+            
+            tabSwitchCount++; 
+            currentPhase=p; 
+            
+            document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); 
+            document.querySelectorAll('.content-area').forEach(c=>c.classList.remove('active')); 
+            
+            const idx=phaseOrder.indexOf(p); 
+            document.querySelectorAll('.tab-btn')[idx].classList.add('active'); 
+            document.querySelectorAll('.content-area')[idx].classList.add('active'); 
+            log('NAV',p); 
+        }
+        
+        function unlockPhase(p) {
+            unlockedPhases[p] = true;
+            const btn = document.getElementById(`tab-${p}`);
+            if(btn) btn.classList.remove('locked');
+        }
+
         function typeWriterMsg(r,t) { const box = document.getElementById('chat-msgs'); const div = document.createElement('div'); div.className = `msg ${r} typing-cursor`; box.appendChild(div); let i = 0; const tm = setInterval(()=>{ text = t || ""; div.innerHTML = marked.parse(text.substring(0, i++)); box.scrollTop = 99999; if(i>text.length){ clearInterval(tm); div.classList.remove('typing-cursor'); } }, 20); }
         function typeWriterText(e,t) { let i = 0; const tm = setInterval(()=>{ e.innerHTML = marked.parse(t.substring(0, i++)); if(i>t.length) clearInterval(tm); }, 15); }
         function extractJSON(s) { const a=s.indexOf('{'),b=s.lastIndexOf('}'); return (a!=-1&&b!=-1)?s.substring(a,b+1):"{}"; }

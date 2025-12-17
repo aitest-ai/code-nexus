@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>學生學習系統 (Auto Restore)</title>
+    <title>學生學習系統 (V14.0 Auto Category)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -22,7 +22,7 @@
             --text: #e0e0e0; 
             --border: #333; 
         }
-                /* ✅ 字體：芫荽 Iansui（繁中） */
+        /* ✅ 字體：芫荽 Iansui（繁中） */
         @font-face {
             font-family: 'Iansui';
             font-style: normal;
@@ -528,6 +528,7 @@
                     
                     if (latestPhase) {
                         console.log("找到最新進度:", latestPhase);
+                        // 定義狀態機：如果找到了 key，就應該跳到 value 的頁面
                         const phaseMap = {
                             'PHASE_1_LEARNING': 'exercise', // 完成影片 -> 去練習
                             'PHASE_2_EXERCISE': 'posing',   // 完成練習 -> 去擬題
@@ -541,9 +542,8 @@
                         if (targetPhase) {
                             // 依序解鎖直到目標階段
                             const phases = ['learning', 'exercise', 'posing', 'ai-review', 'human-review', 'reflection'];
-                            let found = false;
                             for (const p of phases) {
-                                unlockPhase(p);
+                                unlockPhase(p); // 呼叫全域的解鎖函式
                                 if (p === targetPhase) break;
                             }
                             // 切換到該頁面
@@ -873,7 +873,17 @@ builtins.input = custom_input
             const t = document.getElementById('pp-title').value; const c = document.getElementById('code-editor').value;
             if(!t) return alert("請填寫題目");
             sessionData.probTitle = t; sessionData.probDesc = document.getElementById('pp-desc').value; sessionData.probCode = c;
-            await sendToGAS({ type: 'PHASE_3_POSING', studentId, probTitle: t, probDesc: sessionData.probDesc, probCode: c });
+            
+            // ★★★ 自動抓取教材分類 (V14.0) ★★★
+            await sendToGAS({ 
+                type: 'PHASE_3_POSING', 
+                studentId, 
+                probTitle: t, 
+                probDesc: sessionData.probDesc, 
+                probCode: c,
+                unitTitle: window.LESSON_CONFIG.title || "預設教材"
+            });
+            
             unlockPhase('ai-review'); // 解鎖
             switchPhase('ai-review'); 
         }

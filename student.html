@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>學生學習系統</title>
+    <title>學生學習系統 (Auto Restore)</title>
     
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
@@ -502,6 +502,59 @@
                     console.error("Firebase 上傳失敗:", e);
                 }
             };
+            
+            // ★★★ 3. 自動恢復進度函式 ★★★
+            window.restoreStudentProgress = async function(studentId) {
+                console.log("正在恢復學生進度...", studentId);
+                // 查詢該學生最新的進度紀錄 (只查 PHASE_ 開頭的)
+                const q = query(
+                    collection(db, "records"), 
+                    where("studentId", "==", studentId), 
+                    orderBy("createdAt", "desc") // 從最新開始找
+                );
+                
+                try {
+                    const snap = await getDocs(q);
+                    let latestPhase = null;
+                    
+                    // 遍歷找出最新的有效階段 (排除 MONITOR_LOG, CHAT_LOG)
+                    for (const doc of snap.docs) {
+                        const type = doc.data().type;
+                        if (type && type.startsWith('PHASE_')) {
+                            latestPhase = type;
+                            break; // 找到最新的就停
+                        }
+                    }
+                    
+                    if (latestPhase) {
+                        console.log("找到最新進度:", latestPhase);
+                        const phaseMap = {
+                            'PHASE_1_LEARNING': 'exercise', // 完成影片 -> 去練習
+                            'PHASE_2_EXERCISE': 'posing',   // 完成練習 -> 去擬題
+                            'PHASE_3_POSING': 'ai-review',  // 完成擬題 -> 去AI評分
+                            'PHASE_4_AI': 'human-review',   // 完成AI -> 去互評
+                            'PHASE_5_PEER': 'reflection',   // 完成互評 -> 去反思
+                            'PHASE_6_REFLECTION': 'reflection' // 全部完成
+                        };
+                        
+                        const targetPhase = phaseMap[latestPhase];
+                        if (targetPhase) {
+                            // 依序解鎖直到目標階段
+                            const phases = ['learning', 'exercise', 'posing', 'ai-review', 'human-review', 'reflection'];
+                            let found = false;
+                            for (const p of phases) {
+                                unlockPhase(p);
+                                if (p === targetPhase) break;
+                            }
+                            // 切換到該頁面
+                            switchPhase(targetPhase);
+                            typeWriterMsg('ai', `歡迎回來！系統已為您恢復到【${targetPhase}】階段。`);
+                        }
+                    }
+                } catch (e) {
+                    console.error("恢復進度失敗:", e);
+                }
+            };
 
             // 執行讀取
             window.loadLessonFromCloud();
@@ -510,6 +563,7 @@
             window.loadYoutubeAPI();
             // 定義空函式，避免報錯
             window.uploadToFirebase = async function() {};
+            window.restoreStudentProgress = async function() {};
         }
     </script>
 
@@ -918,11 +972,23 @@ builtins.input = custom_input
             alert("介面已強制重置");
         }
         
-        function loginSystem() { if(!document.getElementById('student-id-input').value) return alert("輸入學號"); studentId = document.getElementById('student-id-input').value; document.getElementById('display-student-id').innerText = "ID: "+studentId; document.getElementById('login-overlay').style.display='none'; 
-        // V13.0: 登入時清除對話歷史
-        chatHistory = [];
-        init(); 
+        function loginSystem() { 
+            if(!document.getElementById('student-id-input').value) return alert("輸入學號"); 
+            studentId = document.getElementById('student-id-input').value; 
+            document.getElementById('display-student-id').innerText = "ID: "+studentId; 
+            document.getElementById('login-overlay').style.display='none'; 
+            
+            // V13.0: 登入時清除對話歷史
+            chatHistory = [];
+            
+            // ★★★ V14.0: 自動恢復進度 ★★★
+            if (window.restoreStudentProgress) {
+                window.restoreStudentProgress(studentId);
+            }
+            
+            init(); 
         }
+        
         async function init() {
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
             try { await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL), faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)]); isFaceLoaded = true; } catch(e){}

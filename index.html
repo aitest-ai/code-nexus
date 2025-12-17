@@ -1,65 +1,86 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>結合情緒偵測技術之擬題、解題及同儕互評之無所不在學習系統</title>
-    <style>
-        body {
-            font-family: 'Microsoft JhengHei', sans-serif;
-            background-color: #050505;
-            color: #e0e0e0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-        h1 { color: #00ff9d; margin-bottom: 40px; font-size: 3em; }
-        .card-container { display: flex; gap: 30px; }
-        .card {
-            background: #1a1a1a;
-            border: 2px solid #333;
-            border-radius: 10px;
-            padding: 40px;
-            width: 200px;
-            text-align: center;
-            cursor: pointer;
-            transition: 0.3s;
-            text-decoration: none; /* 去除連結底線 */
-            color: white;
-        }
-        .card:hover {
-            border-color: #00ff9d;
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(0, 255, 157, 0.2);
-        }
-        .icon { font-size: 50px; margin-bottom: 20px; display: block; }
-        .role { font-size: 1.5em; font-weight: bold; }
-    </style>
-</head>
-<body>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>結合情緒偵測技術之擬題、解題及同儕互評之無所不在學習系統</title>
 
-    <h1>
+  <style>
+    /* 載入：芫荽 Iansui（繁中子集） */
+    @font-face {
+      font-family: 'Iansui';
+      font-style: normal;
+      font-display: swap;
+      font-weight: 400;
+      src:
+        url(https://cdn.jsdelivr.net/fontsource/fonts/iansui@latest/chinese-traditional-400-normal.woff2) format('woff2'),
+        url(https://cdn.jsdelivr.net/fontsource/fonts/iansui@latest/chinese-traditional-400-normal.woff) format('woff');
+    }
+
+    body {
+      font-family: 'Iansui', '芫荽', 'Microsoft JhengHei', sans-serif;
+      background-color: #050505;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center; /* 讓整體文字（含 h1）置中 */
+    }
+
+    h1 {
+      color: #00ff9d;
+      margin-bottom: 40px;
+      font-size: 3em;
+      line-height: 1.25;
+      max-width: 18em;  /* 避免一行太長，更好看 */
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .card-container { display: flex; gap: 30px; }
+    .card {
+      background: #1a1a1a;
+      border: 2px solid #333;
+      border-radius: 10px;
+      padding: 40px;
+      width: 200px;
+      text-align: center;
+      cursor: pointer;
+      transition: 0.3s;
+      text-decoration: none;
+      color: white;
+    }
+    .card:hover {
+      border-color: #00ff9d;
+      transform: translateY(-5px);
+      box-shadow: 0 5px 15px rgba(0, 255, 157, 0.2);
+    }
+    .icon { font-size: 50px; margin-bottom: 20px; display: block; }
+    .role { font-size: 1.5em; font-weight: bold; }
+  </style>
+</head>
+
+<body>
+  <h1>
     結合情緒偵測技術之擬題、解題及<br>
     同儕互評之無所不在學習系統
-    </h1>
+  </h1>
 
+  <div class="card-container">
+    <a href="student.html" class="card">
+      <span class="icon">👨‍🎓</span>
+      <span class="role">我是學生</span>
+      <p style="color:#888; font-size:0.9em;">進入學習系統</p>
+    </a>
 
-    <div class="card-container">
-        <a href="student.html" class="card">
-            <span class="icon">👨‍🎓</span>
-            <span class="role">我是學生</span>
-            <p style="color:#888; font-size:0.9em;">進入學習系統</p>
-        </a>
-
-        <a href="teacher.html" class="card">
-            <span class="icon">👩‍🏫</span>
-            <span class="role">我是老師</span>
-            <p style="color:#888; font-size:0.9em;">進入教材管理</p>
-        </a>
-    </div>
-
+    <a href="teacher.html" class="card">
+      <span class="icon">👩‍🏫</span>
+      <span class="role">我是老師</span>
+      <p style="color:#888; font-size:0.9em;">進入教材管理</p>
+    </a>
+  </div>
 </body>
 </html>

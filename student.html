@@ -301,10 +301,10 @@
     
     <div id="therapy-overlay" class="overlay">
         <div class="therapy-box">
-            <h2 style="color:var(--danger); margin-top:0;">⚠️ 壓力過載</h2>
-            <p style="color:#aaa;">偵測到高度焦慮，休息一下吧。</p>
-            <div id="therapy-text">正在載入笑話...</div>
-            <button class="btn-action" id="btn-resume" onclick="stopTherapy()" style="opacity:0; margin-top:20px; width:100%;">😅 好的，我心情好多了 (繼續)</button>
+            <h2 style="color:var(--danger); margin-top:0;">⚠️ 系統提示</h2>
+            <p style="color:#aaa;">先深呼吸，休息一下吧。</p>
+            <div id="therapy-text">正在分析狀況...</div>
+            <button class="btn-action" id="btn-resume" onclick="stopTherapy()" style="opacity:0; margin-top:20px; width:100%;">好的，我準備好了 (繼續)</button>
         </div>
     </div>
 
@@ -623,9 +623,6 @@
         }
         分數向度(1-5分)：1.題目正確性 2.邏輯複雜度 3.實用性 4.代碼正確性 5.代碼可讀性。
         `;
-        
-        // ★★★ 修正後的治療 Prompt (限制長度) ★★★
-        const PROMPT_THERAPY_STYLE = `使用者壓力過高。請講一個「30字以內」的極短工程師笑話或鼓勵的話。一定要短。`;
 
         // === API 呼叫防呆機制 (Timeout Wrapper + Auto Retry) ===
         async function safeCallAI(prompt, system, buttonId, retryCount = 0) {
@@ -940,7 +937,7 @@ builtins.input = custom_input
                     log('CHAT_STRESS', `AI偵測到負面語氣: ${text}`);
                     
                     if (stressScore > 85 && !isPaused) {
-                        triggerTherapy(); // 如果壓力突破臨界點，直接打斷觸發治療
+                        triggerTherapy("text_input"); // 標記原因是文字輸入
                     }
                 }
             } catch (e) {
@@ -1060,7 +1057,15 @@ builtins.input = custom_input
                 prevStatusLog = status;
             }
 
-            if(stressScore>85) triggerTherapy();
+            // 判斷壓力超載的主要原因
+            if(stressScore > 85) {
+                let cause = "mixed";
+                if (actDelta > 0) cause = "action"; // 如果有狂躁的滑鼠/鍵盤動作，優先判定為行為焦慮
+                else if (emoDelta > 0) cause = "emotion"; // 如果沒有狂躁動作但表情是負面的，判定為情緒低落
+                
+                triggerTherapy(cause);
+            }
+
             mouseDist=0; backspaceCount=0; keypressCount=0;
 
             // ★ 每 10 秒上傳一次監測數據 ★
@@ -1079,13 +1084,26 @@ builtins.input = custom_input
 
         async function runPython() { await executePythonCode('code-editor', 'output'); }
         
-        async function triggerTherapy() { 
-            if(isPaused)return; isPaused=true; 
+        // ★★★ 修改：根據超載原因，讓 AI 給予不同的協助 ★★★
+        async function triggerTherapy(cause) { 
+            if(isPaused) return; isPaused=true; 
             document.getElementById('therapy-overlay').style.display='flex'; 
-            if(ytPlayer)ytPlayer.pauseVideo(); 
-            const r=await callGemini("Alert",PROMPT_THERAPY_STYLE); 
-            document.getElementById('therapy-text').innerText=r; 
-            setTimeout(()=>document.getElementById('btn-resume').style.opacity='1',2000); 
+            if(ytPlayer) ytPlayer.pauseVideo(); 
+
+            let dynamicPrompt = "";
+            if (cause === "emotion") {
+                dynamicPrompt = `學生目前的臉部表情被偵測到強烈的負面情緒（難過、生氣、恐懼），他可能遇到了理解上的困難或極大挫折。請用溫柔、鼓勵的老師口吻，給予「30字以內」的極短溫暖安慰，告訴他遇到困難很正常。一定要短。`;
+            } else if (cause === "action") {
+                dynamicPrompt = `學生目前在畫面上瘋狂甩動滑鼠、狂按鍵盤或瘋狂切換分頁，顯示出極度焦躁、坐不住或不耐煩。請用幽默、輕鬆的導師口吻，給予「30字以內」的極短安撫，例如請他先放開滑鼠深呼吸，引導他回到學習正軌。一定要短。`;
+            } else if (cause === "text_input") {
+                dynamicPrompt = `學生剛剛在聊天室輸入了放棄或負面的字眼。請用充滿能量、同理心的教練口吻，給予「30字以內」的極短鼓勵，告訴他你就在這裡陪他一起解決。一定要短。`;
+            } else {
+                dynamicPrompt = `學生目前學習壓力過大。請講一個「30字以內」的極短工程師笑話或鼓勵的話，幫他放鬆心情。一定要短。`;
+            }
+
+            const r = await callGemini("Alert", dynamicPrompt); 
+            document.getElementById('therapy-text').innerText = r; 
+            setTimeout(() => document.getElementById('btn-resume').style.opacity = '1', 2000); 
         }
 
         // ★★★ V13.1: 頁籤切換與鎖定機制 ★★★
@@ -1119,7 +1137,7 @@ builtins.input = custom_input
             if(GAS_URL.startsWith("http")) await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); 
         }
 
-        // ★★★ 負責將資訊顯示在左側 Log 面板的函式 ★★★
+        // ★★★ 修改：移除 Emoji，確保單純顯示文字 ★★★
         function log(t, d) { 
             // 1. 維持原本的後端上傳邏輯 (不把 EMO 和 STATE 這類碎片的紀錄傳送給 GAS，避免耗盡 Google Apps Script 配額)
             if (t !== 'ACT' && t !== 'CHAT' && t !== 'EMO' && t !== 'STATE') {
@@ -1136,10 +1154,9 @@ builtins.input = custom_input
                 const logEntry = document.createElement('div');
                 logEntry.className = 'log-entry';
                 
-                // 幫表情加上一點視覺提示
+                // 移除原有的 emoji map，直接印出狀態文字
                 if(t === 'EMO') {
-                    const emoMap = {neutral:'😐', happy:'😀', sad:'😢', angry:'😡', fearful:'😨', disgusted:'🤢', surprised:'😲'};
-                    logEntry.innerText = `[${timeStr}] 臉部表情變更為: ${d} ${emoMap[d] || ''}`;
+                    logEntry.innerText = `[${timeStr}] 臉部表情變更為: ${d}`;
                 } else if (t === 'STATE') {
                     logEntry.innerText = `[${timeStr}] 系統狀態變更: ${d}`;
                 } else {

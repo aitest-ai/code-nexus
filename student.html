@@ -592,7 +592,8 @@
         let currentPeerProblemTitle = "";
         let currentPeerRefCode = ""; 
         let stressScore = 0, tabSwitchCount = 0, faceMissingDuration = 0, learningStartTime = 0;
-        let mouseDist = 0, lastMouseX = 0, lastMouseY = 0, backspaceCount = 0, lastEmotion = "";
+        let mouseDist = 0, lastMouseX = 0, lastMouseY = 0, backspaceCount = 0, keypressCount = 0, lastEmotion = "";
+        let prevEmotionLog = "", prevStatusLog = ""; // 用於防止日誌重複洗頻
         let chatHistory = [];
         let ytPlayer = null;
         let readTimerInterval = null;
@@ -928,12 +929,34 @@ builtins.input = custom_input
         // Core System (Login, Monitor, Chat)
         // ===============================================
         
+        // ★★★ 新增：讓 AI 背景判斷是否帶有強烈負面情緒 ★★★
+        async function checkNegativeEmotion(text) {
+            try {
+                const prompt = `[語意分析任務]\n請判斷以下學生的訊息是否帶有強烈的放棄、挫折、煩躁、憤怒、或不當用語。\n學生訊息：「${text}」\n請只回答大寫的 "YES" 或 "NO"。`;
+                const r = await callGemini(prompt, "You are a strict emotion detector.");
+                
+                if (r.toUpperCase().includes("YES")) {
+                    stressScore = Math.min(100, stressScore + 20); // 瞬間增加壓力值
+                    log('CHAT_STRESS', `AI偵測到負面語氣: ${text}`);
+                    
+                    if (stressScore > 85 && !isPaused) {
+                        triggerTherapy(); // 如果壓力突破臨界點，直接打斷觸發治療
+                    }
+                }
+            } catch (e) {
+                console.error("Emotion check failed", e);
+            }
+        }
+
         // V13.1: 聊天室穩定性修復 (限制長度 & 錯誤除錯 & 傳送上下文)
         async function sendChat() { 
             const v=document.getElementById('chat-input').value; if(!v)return; 
             document.getElementById('chat-msgs').innerHTML+=`<div class="msg user">${v}</div>`; 
             document.getElementById('chat-input').value=""; 
             
+            // ★★★ 在背景啟動情緒分析 (不會讓下面的對話卡住) ★★★
+            checkNegativeEmotion(v);
+
             // 限制只傳送最後 10 句
             if (chatHistory.length > 20) chatHistory = chatHistory.slice(chatHistory.length - 20);
             
@@ -1005,7 +1028,7 @@ builtins.input = custom_input
             try { const s = await navigator.mediaDevices.getUserMedia({ video: {} }); document.getElementById('video').srcObject = s; document.getElementById('video').addEventListener('play', ()=>setInterval(monitorLoop, 1000)); } catch(e){}
             try { pyodide = await loadPyodide(); } catch(e){}
             document.addEventListener('mousemove', (e) => { if(lastMouseX!==0) mouseDist+=Math.sqrt(Math.pow(e.clientX-lastMouseX,2)+Math.pow(e.clientY-lastMouseY,2)); lastMouseX=e.clientX; lastMouseY=e.clientY; });
-            document.addEventListener('keydown', (e)=> { if(e.key==='Backspace') backspaceCount++; });
+            document.addEventListener('keydown', (e)=> { keypressCount++; if(e.key==='Backspace') backspaceCount++; });
             setInterval(() => tabSwitchCount=0, 5000); typeWriterMsg('ai', `你好！請開始學習。`); learningStartTime = Date.now(); 
         }
         
@@ -1018,14 +1041,27 @@ builtins.input = custom_input
                     faceMissingDuration=0; document.getElementById('face-lock-overlay').style.display='none';
                     const top = Object.entries(det[0].expressions).sort((a,b)=>b[1]-a[1])[0][0]; document.getElementById('emo-val').innerText = top; lastEmotion = top;
                     if(['sad','angry','fearful'].includes(top)) emoDelta+=5; 
+                    
+                    // 新增：當表情改變時，即時寫入 Log (傳入 EMO 類別)
+                    if (top !== prevEmotionLog) {
+                        log('EMO', top);
+                        prevEmotionLog = top;
+                    }
                 } else { faceMissingDuration++; if(faceMissingDuration>3) document.getElementById('face-lock-overlay').style.display='flex'; }
             }
-            if(mouseDist>4000 || backspaceCount>10 || tabSwitchCount>4) { actDelta+=10; status="焦慮"; statusClass="val bad"; }
+            if(mouseDist > 4000 || backspaceCount > 5 || keypressCount > 15 || tabSwitchCount > 4) { actDelta+=15; status="焦慮"; statusClass="val bad"; }
             document.getElementById('act-val').innerText = status; document.getElementById('act-val').className = statusClass;
             stressScore = Math.min(100, Math.max(0, stressScore + emoDelta + actDelta - 2));
             const bar = document.getElementById('stress-bar'); bar.style.width = stressScore+"%"; bar.style.background = stressScore>85?"red":stressScore>50?"orange":"#00ff9d";
+            
+            // 新增：當狀態改變時，即時寫入 Log
+            if (status !== prevStatusLog) {
+                log('STATE', status);
+                prevStatusLog = status;
+            }
+
             if(stressScore>85) triggerTherapy();
-            mouseDist=0; backspaceCount=0;
+            mouseDist=0; backspaceCount=0; keypressCount=0;
 
             // ★ 每 10 秒上傳一次監測數據 ★
             const now = Date.now();
@@ -1082,13 +1118,15 @@ builtins.input = custom_input
             if(window.uploadToFirebase) window.uploadToFirebase(d); 
             if(GAS_URL.startsWith("http")) await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); 
         }
+
+        // ★★★ 負責將資訊顯示在左側 Log 面板的函式 ★★★
         function log(t, d) { 
-            // 1. 維持原本的後端上傳邏輯
-            if (t !== 'ACT' && t !== 'CHAT') {
+            // 1. 維持原本的後端上傳邏輯 (不把 EMO 和 STATE 這類碎片的紀錄傳送給 GAS，避免耗盡 Google Apps Script 配額)
+            if (t !== 'ACT' && t !== 'CHAT' && t !== 'EMO' && t !== 'STATE') {
                 sendToGAS({type: 'LOG', studentId, action: t, detail: d}); 
             }
 
-            // 2. 新增：顯示在左側面板的 UI 上
+            // 2. 顯示在左側面板的 UI 上
             const logBox = document.getElementById('log-box');
             if (logBox) {
                 // 取得當前時間
@@ -1097,7 +1135,16 @@ builtins.input = custom_input
                 // 建立新的 log 元素
                 const logEntry = document.createElement('div');
                 logEntry.className = 'log-entry';
-                logEntry.innerText = `[${timeStr}] ${t}: ${d}`;
+                
+                // 幫表情加上一點視覺提示
+                if(t === 'EMO') {
+                    const emoMap = {neutral:'😐', happy:'😀', sad:'😢', angry:'😡', fearful:'😨', disgusted:'🤢', surprised:'😲'};
+                    logEntry.innerText = `[${timeStr}] 臉部表情變更為: ${d} ${emoMap[d] || ''}`;
+                } else if (t === 'STATE') {
+                    logEntry.innerText = `[${timeStr}] 系統狀態變更: ${d}`;
+                } else {
+                    logEntry.innerText = `[${timeStr}] ${t}: ${d}`;
+                }
                 
                 // 插入到面板中
                 logBox.appendChild(logEntry);
@@ -1106,6 +1153,7 @@ builtins.input = custom_input
                 logBox.scrollTop = logBox.scrollHeight;
             }
         }
+
         function stopTherapy() { document.getElementById('therapy-overlay').style.display='none'; stressScore=40; isPaused=false; }
         
     </script>

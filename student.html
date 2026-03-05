@@ -1082,7 +1082,30 @@ builtins.input = custom_input
             if(window.uploadToFirebase) window.uploadToFirebase(d); 
             if(GAS_URL.startsWith("http")) await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); 
         }
-        function log(t,d) { if(t!=='ACT'&&t!=='CHAT') sendToGAS({type:'LOG',studentId,action:t,detail:d}); }
+        function log(t, d) { 
+            // 1. 維持原本的後端上傳邏輯
+            if (t !== 'ACT' && t !== 'CHAT') {
+                sendToGAS({type: 'LOG', studentId, action: t, detail: d}); 
+            }
+
+            // 2. 新增：顯示在左側面板的 UI 上
+            const logBox = document.getElementById('log-box');
+            if (logBox) {
+                // 取得當前時間
+                const timeStr = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+                
+                // 建立新的 log 元素
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                logEntry.innerText = `[${timeStr}] ${t}: ${d}`;
+                
+                // 插入到面板中
+                logBox.appendChild(logEntry);
+                
+                // 自動往下捲動到最新的一筆
+                logBox.scrollTop = logBox.scrollHeight;
+            }
+        }
         function stopTherapy() { document.getElementById('therapy-overlay').style.display='none'; stressScore=40; isPaused=false; }
         
     </script>

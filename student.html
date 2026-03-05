@@ -19,6 +19,7 @@
             --accent-dim: #005533; 
             --danger: #ff3333; 
             --warning: #ffcc00; 
+            --info: #0099ff;
             --text: #e0e0e0; 
             --border: #333; 
         }
@@ -257,29 +258,19 @@
         @keyframes pulse { 0% {transform: scale(1);} 50% {transform: scale(1.1);} 100% {transform: scale(1);} }
         .login-box { width: 350px; padding: 40px; border: 1px solid var(--accent); border-radius: 10px; background: #111; }
 
-        /* 治療模式樣式 (固定大小、可捲動) */
+        /* 治療模式變更為互動救援視窗 */
         .therapy-box {
             background: #111;
             padding: 30px;
             border-radius: 15px;
-            border: 2px solid var(--danger);
-            max-width: 500px;
+            border: 2px solid var(--info);
+            max-width: 600px;
             width: 80%;
-            text-align: center;
-            box-shadow: 0 0 50px rgba(255, 51, 51, 0.2);
+            height: 75vh;
+            box-shadow: 0 0 50px rgba(0, 153, 255, 0.2);
             display: flex;
             flex-direction: column;
             align-items: center;
-        }
-        #therapy-text {
-            color: #fff;
-            margin: 20px 0;
-            font-size: 1.3em;
-            line-height: 1.6;
-            min-height: 60px;
-            max-height: 300px;
-            overflow-y: auto;
-            width: 100%;
         }
         
         /* 自動重試指示燈 */
@@ -301,10 +292,18 @@
     
     <div id="therapy-overlay" class="overlay">
         <div class="therapy-box">
-            <h2 style="color:var(--danger); margin-top:0;">⚠️ 系統提示</h2>
-            <p style="color:#aaa;">先深呼吸，休息一下吧。</p>
-            <div id="therapy-text">正在分析狀況...</div>
-            <button class="btn-action" id="btn-resume" onclick="stopTherapy()" style="opacity:0; margin-top:20px; width:100%;">好的，我準備好了 (繼續)</button>
+            <h2 style="color:var(--info); margin-top:0;">💡 助教連線中</h2>
+            <p style="color:#aaa; font-size: 0.9em; margin-bottom: 15px;">系統偵測到你可能遇到瓶頸了，我們來聊聊吧！</p>
+            
+            <div id="intervention-chat-msgs" style="flex:1; width:100%; background:#000; border:1px solid #333; border-radius:8px; padding:10px; overflow-y:auto; text-align:left; margin-bottom:15px; display:flex; flex-direction:column;">
+                </div>
+            
+            <div style="display:flex; gap:10px; width:100%; margin-bottom:15px;">
+                <input id="intervention-chat-input" placeholder="告訴我你遇到什麼問題，或把錯誤訊息貼上來..." onkeypress="if(event.key==='Enter') sendInterventionChat()" style="margin-bottom:0;">
+                <button class="btn-action" onclick="sendInterventionChat()">發送</button>
+            </div>
+
+            <button class="btn-action" id="btn-resume" onclick="stopTherapy()" style="width:100%; background:#222; border-color:#444; color:#ccc; opacity:0; transition:0.5s;">😌 我沒問題了，回到課程</button>
         </div>
     </div>
 
@@ -548,7 +547,7 @@
                             }
                             // 切換到該頁面
                             switchPhase(targetPhase);
-                            typeWriterMsg('ai', `歡迎回來！系統已為您恢復到【${targetPhase}】階段。`);
+                            appendMsgToBoth('ai', `歡迎回來！系統已為您恢復到【${targetPhase}】階段。`);
                         }
                     }
                 } catch (e) {
@@ -574,7 +573,7 @@
 
         // ★★★ V12.0: 自訂聊天室風格 (Prompt) ★★★
         const CUSTOM_CHAT_PROMPT = `
-        你現在是一位富有耐心的程式設計導師 (Socratic Tutor)。
+        你現在是一位富有耐心的大學程式設計導師 (Socratic Tutor)。
         1. 請用引導的方式回答學生的問題，不要直接給出完整程式碼。
         2. 鼓勵學生思考，適時使用反問句。
         3. 回答要簡潔，適合初學者閱讀，一次輸出不超過300字。
@@ -779,7 +778,7 @@ builtins.input = custom_input
                 document.getElementById('ex-gen-section').style.display = 'none';
                 document.getElementById('ex-solve-section').style.display = 'block';
                 selectDifficulty('low');
-                typeWriterMsg('ai', '題目已生成，請開始挑戰！');
+                appendMsgToBoth('ai', '題目已生成，請開始挑戰！');
             } catch(e) { console.error(e); }
         }
         function selectDifficulty(level) {
@@ -823,7 +822,7 @@ builtins.input = custom_input
                 else { document.getElementById('ex-feedback').style.borderColor = "#ff3333"; }
             } catch(e) { console.error(e); }
         }
-        function finishExercise() { switchPhase('posing'); typeWriterMsg('ai', '太棒了！現在試著自己出題吧！'); }
+        function finishExercise() { switchPhase('posing'); appendMsgToBoth('ai', '太棒了！現在試著自己出題吧！'); }
 
         // ===============================================
         // Phase 5: Peer Review (Load & Solve)
@@ -860,7 +859,7 @@ builtins.input = custom_input
         // Phase Transitions & AI Scoring Fix
         // ===============================================
         async function finishLearning() {
-            if((Date.now()-learningStartTime)/1000 < 5) { stressScore+=20; return typeWriterMsg('ai', '讀太快了！請專心看完影片。'); }
+            if((Date.now()-learningStartTime)/1000 < 5) { stressScore+=20; return appendMsgToBoth('ai', '讀太快了！請專心看完影片。'); }
             if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo();
             await sendToGAS({ type: 'PHASE_1_LEARNING', studentId, readingTime: readSeconds });
             log('LN',`完成 - 閱讀時長: ${readSeconds}s`); 
@@ -926,7 +925,40 @@ builtins.input = custom_input
         // Core System (Login, Monitor, Chat)
         // ===============================================
         
-        // ★★★ 新增：讓 AI 背景判斷是否帶有強烈負面情緒 ★★★
+        // ★★★ 負責將聊天室文字推送到兩個聊天區塊（主要面板 + 救援對話框） ★★★
+        function appendMsgToBoth(role, t) {
+            const text = t || "";
+            const box1 = document.getElementById('intervention-chat-msgs');
+            const box2 = document.getElementById('chat-msgs');
+            
+            let div1, div2;
+            if(box1) { div1 = document.createElement('div'); div1.className = `msg ${role}`; box1.appendChild(div1); }
+            if(box2) { div2 = document.createElement('div'); div2.className = `msg ${role}`; box2.appendChild(div2); }
+
+            if(role === 'ai') {
+                if(div1) div1.classList.add('typing-cursor');
+                if(div2) div2.classList.add('typing-cursor');
+                let i = 0;
+                const tm = setInterval(()=>{ 
+                    const parsed = marked.parse(text.substring(0, i++));
+                    if(div1) { div1.innerHTML = parsed; box1.scrollTop = 99999; }
+                    if(div2) { div2.innerHTML = parsed; box2.scrollTop = 99999; }
+                    if(i > text.length){ 
+                        clearInterval(tm); 
+                        if(div1) div1.classList.remove('typing-cursor'); 
+                        if(div2) div2.classList.remove('typing-cursor'); 
+                    } 
+                }, 20);
+            } else {
+                if(div1) { div1.innerText = text; box1.scrollTop = 99999; }
+                if(div2) { div2.innerText = text; box2.scrollTop = 99999; }
+            }
+        }
+
+        // 專門為 AI 評語區使用的打字機效果
+        function typeWriterText(e,t) { let i = 0; const tm = setInterval(()=>{ e.innerHTML = marked.parse(t.substring(0, i++)); if(i>t.length) clearInterval(tm); }, 15); }
+
+        // ★★★ 讓 AI 背景判斷是否帶有強烈負面情緒 ★★★
         async function checkNegativeEmotion(text) {
             try {
                 const prompt = `[語意分析任務]\n請判斷以下學生的訊息是否帶有強烈的放棄、挫折、煩躁、憤怒、或不當用語。\n學生訊息：「${text}」\n請只回答大寫的 "YES" 或 "NO"。`;
@@ -945,34 +977,52 @@ builtins.input = custom_input
             }
         }
 
-        // V13.1: 聊天室穩定性修復 (限制長度 & 錯誤除錯 & 傳送上下文)
+        // 一般狀態下的聊天室發送
         async function sendChat() { 
-            const v=document.getElementById('chat-input').value; if(!v)return; 
-            document.getElementById('chat-msgs').innerHTML+=`<div class="msg user">${v}</div>`; 
-            document.getElementById('chat-input').value=""; 
+            const v = document.getElementById('chat-input').value.trim(); if(!v) return; 
+            document.getElementById('chat-input').value = ""; 
             
-            // ★★★ 在背景啟動情緒分析 (不會讓下面的對話卡住) ★★★
+            // 把訊息推送到雙邊畫面
+            appendMsgToBoth('user', v);
+            
+            // 背景檢查負面情緒
             checkNegativeEmotion(v);
 
             // 限制只傳送最後 10 句
             if (chatHistory.length > 20) chatHistory = chatHistory.slice(chatHistory.length - 20);
             
-            // 將本次問題加入歷史
             const userMessage = {role:"user", parts:[{text: `System: ${CUSTOM_CHAT_PROMPT}\nPhase=${currentPhase}\nUser Question: ${v}`}]};
             
-            // 呼叫 AI 時，傳入完整的 chatHistory + 本次問題
-            const r = await callGeminiChat([...chatHistory, userMessage]); 
-            
-            typeWriterMsg('ai', r); 
-            
-            // 更新歷史紀錄
+            // 加入歷史紀錄並呼叫 AI
             chatHistory.push(userMessage);
+            const r = await callGeminiChat(chatHistory); 
+            
             chatHistory.push({role:"model", parts:[{text:r}]});
             
-            sendToGAS({type:'CHAT_LOG',studentId,userMsg:v,aiMsg:r}); 
+            appendMsgToBoth('ai', r);
+            sendToGAS({type:'CHAT_LOG', studentId, userMsg: v, aiMsg: r}); 
+        }
+
+        // ★★★ 新增：在救援視窗裡面的對話發送 ★★★
+        async function sendInterventionChat() {
+            const inputEl = document.getElementById('intervention-chat-input');
+            const v = inputEl.value.trim();
+            if(!v) return;
+            
+            appendMsgToBoth('user', v);
+            inputEl.value = "";
+            
+            const userMsg = { role: "user", parts: [{ text: v }] };
+            chatHistory.push(userMsg);
+            
+            const r = await callGeminiChat(chatHistory);
+            
+            chatHistory.push({ role: "model", parts: [{ text: r }] });
+            appendMsgToBoth('ai', r);
+            
+            sendToGAS({type:'CHAT_LOG', studentId, userMsg: v, aiMsg: r});
         }
         
-        // V13.1 修正：直接傳遞 messages 陣列
         async function callGeminiChat(messages) { 
             if(!GAS_URL.startsWith("http")) return "API Error: URL Invalid"; 
             try {
@@ -1026,7 +1076,7 @@ builtins.input = custom_input
             try { pyodide = await loadPyodide(); } catch(e){}
             document.addEventListener('mousemove', (e) => { if(lastMouseX!==0) mouseDist+=Math.sqrt(Math.pow(e.clientX-lastMouseX,2)+Math.pow(e.clientY-lastMouseY,2)); lastMouseX=e.clientX; lastMouseY=e.clientY; });
             document.addEventListener('keydown', (e)=> { keypressCount++; if(e.key==='Backspace') backspaceCount++; });
-            setInterval(() => tabSwitchCount=0, 5000); typeWriterMsg('ai', `你好！請開始學習。`); learningStartTime = Date.now(); 
+            setInterval(() => tabSwitchCount=0, 5000); appendMsgToBoth('ai', `你好！請開始學習。`); learningStartTime = Date.now(); 
         }
         
         // ★★★ 關鍵修改：情緒與壓力上傳迴圈 ★★★
@@ -1039,7 +1089,7 @@ builtins.input = custom_input
                     const top = Object.entries(det[0].expressions).sort((a,b)=>b[1]-a[1])[0][0]; document.getElementById('emo-val').innerText = top; lastEmotion = top;
                     if(['sad','angry','fearful'].includes(top)) emoDelta+=5; 
                     
-                    // 新增：當表情改變時，即時寫入 Log (傳入 EMO 類別)
+                    // 當表情改變時，即時寫入 Log
                     if (top !== prevEmotionLog) {
                         log('EMO', top);
                         prevEmotionLog = top;
@@ -1051,7 +1101,7 @@ builtins.input = custom_input
             stressScore = Math.min(100, Math.max(0, stressScore + emoDelta + actDelta - 2));
             const bar = document.getElementById('stress-bar'); bar.style.width = stressScore+"%"; bar.style.background = stressScore>85?"red":stressScore>50?"orange":"#00ff9d";
             
-            // 新增：當狀態改變時，即時寫入 Log
+            // 當狀態改變時，即時寫入 Log
             if (status !== prevStatusLog) {
                 log('STATE', status);
                 prevStatusLog = status;
@@ -1084,27 +1134,52 @@ builtins.input = custom_input
 
         async function runPython() { await executePythonCode('code-editor', 'output'); }
         
-        // ★★★ 修改：根據超載原因，讓 AI 給予不同的協助 (加上嚴格輸出限制) ★★★
+        // ★★★ 救援對話框觸發機制：收集現場證據並請 AI 主動提供解法 ★★★
         async function triggerTherapy(cause) { 
             if(isPaused) return; isPaused=true; 
             document.getElementById('therapy-overlay').style.display='flex'; 
-            if(ytPlayer) ytPlayer.pauseVideo(); 
+            if(ytPlayer && ytPlayer.pauseVideo) ytPlayer.pauseVideo(); 
+            
+            // 清空先前的對話視窗暫存 (可選，這裡選擇清空讓重點專注在這次的問題)
+            document.getElementById('intervention-chat-msgs').innerHTML = '';
+            document.getElementById('intervention-chat-input').value = '';
+            document.getElementById('btn-resume').style.opacity = '0'; // 先隱藏返回按鈕
 
-            let dynamicPrompt = "";
-            const baseRule = "【嚴格規定】請「直接」輸出你要對學生說的話，絕對不要包含任何前言、後語、選項標號或引號。字數必須嚴格限制在30個字以內。";
+            // 蒐集學生目前正在寫的程式碼，交給 AI 當作把脈的依據
+            let currentCode = "";
+            if (currentPhase === 'exercise') currentCode = document.getElementById('ex-code-editor').value;
+            if (currentPhase === 'posing') currentCode = document.getElementById('code-editor').value;
+            if (currentPhase === 'human-review') currentCode = document.getElementById('hr-attempt-editor').value;
 
-            if (cause === "emotion") {
-                dynamicPrompt = `[情境] 一個大學生寫程式寫到表情十分痛苦、充滿挫折。\n[任務] 用平輩或學長姐的語氣，給予一句幽默且懂他的簡短安慰（例如：卡關很正常，先喝口水）。\n${baseRule}`;
-            } else if (cause === "action") {
-                dynamicPrompt = `[情境] 一個大學生因為太焦躁，正在瘋狂亂甩滑鼠或狂敲鍵盤。\n[任務] 用幽默放鬆的語氣，制止他並請他深呼吸，例如「鍵盤是無辜的，先放開滑鼠休息一下」。\n${baseRule}`;
-            } else if (cause === "text_input") {
-                dynamicPrompt = `[情境] 一個大學生剛在對話框輸入了想放棄或負面的字眼。\n[任務] 用溫暖有精神的語氣鼓勵他，告訴他Debug本來就很崩潰，休息一下我們繼續。\n${baseRule}`;
-            } else {
-                dynamicPrompt = `[情境] 一個大學生學習壓力快要超載。\n[任務] 講一個關於寫程式或工程師的極短冷笑話，幫他轉移注意力。\n${baseRule}`;
-            }
+            // 構建給 AI 的秘密提示
+            let sysContext = `[系統隱藏資訊] 學生目前位於「${currentPhase}」階段，且系統偵測到其壓力已達臨界點。`;
+            if (currentCode.trim().length > 0) sysContext += `\n他剛才寫的代碼如下，請幫忙找出可能的盲點：\n${currentCode}\n`;
+            
+            if (cause === "emotion") sysContext += `\n觸發原因：偵測到苦惱、生氣或極度挫折的表情。`;
+            else if (cause === "action") sysContext += `\n觸發原因：滑鼠狂甩、頻繁切換分頁或狂按刪除鍵，顯示出焦躁不安。`;
+            else if (cause === "text_input") sysContext += `\n觸發原因：他在對話框輸入了想放棄或負面的字眼。`;
 
-            const r = await callGemini("Alert", dynamicPrompt); 
-            document.getElementById('therapy-text').innerText = r; 
+            // 這個 Prompt 是發送給聊天室歷史紀錄的，作為 AI 的開場白引導
+            let prompt = `${sysContext}\n[任務] 你現在是個溫暖且技術強大的大學助教。請「主動開口」關心他。如果他有寫代碼，請直接給他一個找 Bug 的方向或提示；如果沒有代碼，請安撫他並問他具體卡在哪裡。請用平輩的口氣，字數控制在60字內，並且絕對不要輸出多餘的廢話或括號。`;
+
+            const startMsg = { role: "user", parts: [{ text: prompt }] };
+            
+            // 顯示正在輸入中的提示
+            const msgBox = document.getElementById('intervention-chat-msgs');
+            msgBox.innerHTML = `<div class="msg ai" id="loading-ai">助教正在檢視你的狀況...</div>`;
+
+            // 呼叫 AI
+            const r = await callGeminiChat([...chatHistory, startMsg]); 
+            
+            // 移除提示並更新紀錄
+            document.getElementById('loading-ai').remove();
+            chatHistory.push(startMsg);
+            chatHistory.push({ role: "model", parts: [{ text: r }] });
+            
+            // 將 AI 的關心推送到畫面上
+            appendMsgToBoth('ai', r);
+
+            // 過兩秒後顯示「回到課程」按鈕
             setTimeout(() => document.getElementById('btn-resume').style.opacity = '1', 2000); 
         }
 
@@ -1131,9 +1206,8 @@ builtins.input = custom_input
             if(btn) btn.classList.remove('locked');
         }
 
-        function typeWriterMsg(r,t) { const box = document.getElementById('chat-msgs'); const div = document.createElement('div'); div.className = `msg ${r} typing-cursor`; box.appendChild(div); let i = 0; const tm = setInterval(()=>{ text = t || ""; div.innerHTML = marked.parse(text.substring(0, i++)); box.scrollTop = 99999; if(i>text.length){ clearInterval(tm); div.classList.remove('typing-cursor'); } }, 20); }
-        function typeWriterText(e,t) { let i = 0; const tm = setInterval(()=>{ e.innerHTML = marked.parse(t.substring(0, i++)); if(i>t.length) clearInterval(tm); }, 15); }
         function extractJSON(s) { const a=s.indexOf('{'),b=s.lastIndexOf('}'); return (a!=-1&&b!=-1)?s.substring(a,b+1):"{}"; }
+        
         async function sendToGAS(d) { 
             if(window.uploadToFirebase) window.uploadToFirebase(d); 
             if(GAS_URL.startsWith("http")) await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}); 
@@ -1141,7 +1215,7 @@ builtins.input = custom_input
 
         // ★★★ 修改：移除 Emoji，確保單純顯示文字 ★★★
         function log(t, d) { 
-            // 1. 維持原本的後端上傳邏輯 (不把 EMO 和 STATE 這類碎片的紀錄傳送給 GAS，避免耗盡 Google Apps Script 配額)
+            // 1. 維持原本的後端上傳邏輯
             if (t !== 'ACT' && t !== 'CHAT' && t !== 'EMO' && t !== 'STATE') {
                 sendToGAS({type: 'LOG', studentId, action: t, detail: d}); 
             }
@@ -1156,7 +1230,7 @@ builtins.input = custom_input
                 const logEntry = document.createElement('div');
                 logEntry.className = 'log-entry';
                 
-                // 移除原有的 emoji map，直接印出狀態文字
+                // 單純印出狀態文字
                 if(t === 'EMO') {
                     logEntry.innerText = `[${timeStr}] 臉部表情變更為: ${d}`;
                 } else if (t === 'STATE') {

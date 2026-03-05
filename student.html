@@ -1084,21 +1084,23 @@ builtins.input = custom_input
 
         async function runPython() { await executePythonCode('code-editor', 'output'); }
         
-        // ★★★ 修改：根據超載原因，讓 AI 給予不同的協助 ★★★
+        // ★★★ 修改：根據超載原因，讓 AI 給予不同的協助 (加上嚴格輸出限制) ★★★
         async function triggerTherapy(cause) { 
             if(isPaused) return; isPaused=true; 
             document.getElementById('therapy-overlay').style.display='flex'; 
             if(ytPlayer) ytPlayer.pauseVideo(); 
 
             let dynamicPrompt = "";
+            const baseRule = "【嚴格規定】請「直接」輸出你要對學生說的話，絕對不要包含任何前言、後語、選項標號或引號。字數必須嚴格限制在30個字以內。";
+
             if (cause === "emotion") {
-                dynamicPrompt = `學生目前的臉部表情被偵測到強烈的負面情緒（難過、生氣、恐懼），他可能遇到了理解上的困難或極大挫折。請用溫柔、鼓勵的老師口吻，給予「30字以內」的極短溫暖安慰，告訴他遇到困難很正常。一定要短。`;
+                dynamicPrompt = `[情境] 一個大學生寫程式寫到表情十分痛苦、充滿挫折。\n[任務] 用平輩或學長姐的語氣，給予一句幽默且懂他的簡短安慰（例如：卡關很正常，先喝口水）。\n${baseRule}`;
             } else if (cause === "action") {
-                dynamicPrompt = `學生目前在畫面上瘋狂甩動滑鼠、狂按鍵盤或瘋狂切換分頁，顯示出極度焦躁、坐不住或不耐煩。請用幽默、輕鬆的導師口吻，給予「30字以內」的極短安撫，例如請他先放開滑鼠深呼吸，引導他回到學習正軌。一定要短。`;
+                dynamicPrompt = `[情境] 一個大學生因為太焦躁，正在瘋狂亂甩滑鼠或狂敲鍵盤。\n[任務] 用幽默放鬆的語氣，制止他並請他深呼吸，例如「鍵盤是無辜的，先放開滑鼠休息一下」。\n${baseRule}`;
             } else if (cause === "text_input") {
-                dynamicPrompt = `學生剛剛在聊天室輸入了放棄或負面的字眼。請用充滿能量、同理心的教練口吻，給予「30字以內」的極短鼓勵，告訴他你就在這裡陪他一起解決。一定要短。`;
+                dynamicPrompt = `[情境] 一個大學生剛在對話框輸入了想放棄或負面的字眼。\n[任務] 用溫暖有精神的語氣鼓勵他，告訴他Debug本來就很崩潰，休息一下我們繼續。\n${baseRule}`;
             } else {
-                dynamicPrompt = `學生目前學習壓力過大。請講一個「30字以內」的極短工程師笑話或鼓勵的話，幫他放鬆心情。一定要短。`;
+                dynamicPrompt = `[情境] 一個大學生學習壓力快要超載。\n[任務] 講一個關於寫程式或工程師的極短冷笑話，幫他轉移注意力。\n${baseRule}`;
             }
 
             const r = await callGemini("Alert", dynamicPrompt); 
